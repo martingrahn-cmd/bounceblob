@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>BounceBlob Level Editor</title>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; user-select: none; }
+
+  /* ─── Sidebar ─── */
+  #sidebar { width: 250px; min-width: 250px; background: #16213e; display: flex; flex-direction: column; border-right: 1px solid #333; z-index: 10; }
+  #sidebar h2 { padding: 14px 16px; color: #FF6B8A; font-size: 16px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+  #sidebar h2 span { font-size: 11px; color: #888; font-weight: 400; }
+
+  .section { padding: 8px 12px; }
+  .section-title { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: 1px; margin-bottom: 6px; }
+
+  .tool-btn {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-bottom: 3px;
+    background: #1a1a2e; border: 1px solid #2a2a4e; border-radius: 5px; cursor: pointer;
+    color: #aaa; font-size: 12px; transition: 0.12s; width: 100%;
+  }
+  .tool-btn:hover { background: #2a2a4e; color: #fff; }
+  .tool-btn.active { background: #2a1a3e; border-color: #FF6B8A; color: #FF6B8A; }
+  .tool-icon { width: 20px; height: 20px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .tool-key { margin-left: auto; font-size: 9px; color: #555; background: #111; padding: 1px 4px; border-radius: 2px; }
+
+  /* ─── Properties ─── */
+  #props { padding: 10px 12px; border-top: 1px solid #333; overflow-y: auto; flex: 1; }
+  .prop-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .prop-row label { font-size: 11px; color: #888; width: 50px; flex-shrink: 0; }
+  .prop-row input { flex: 1; padding: 4px 6px; background: #111; border: 1px solid #333; border-radius: 3px; color: #fff; font-size: 11px; }
+
+  /* ─── Main ─── */
+  #main { flex: 1; display: flex; flex-direction: column; position: relative; }
+
+  /* ─── Toolbar ─── */
+  #toolbar {
+    height: 40px; background: #16213e; border-bottom: 1px solid #333;
+    display: flex; align-items: center; padding: 0 10px; gap: 6px; z-index: 10;
+  }
+  .tb { padding: 5px 12px; background: #2a2a4e; border: 1px solid #333; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer; transition: 0.12s; white-space: nowrap; }
+  .tb:hover { background: #3a3a5e; color: #fff; }
+  .tb.green { background: #2a9d8f; border-color: #2a9d8f; color: #fff; }
+  .tb.pink { background: #FF6B8A; border-color: #FF6B8A; color: #fff; font-weight: 700; }
+  .tb.red { background: #c0392b; border-color: #c0392b; color: #fff; }
+  .tb-sep { width: 1px; height: 22px; background: #333; }
+  .tb-info { font-size: 11px; color: #666; margin-left: auto; }
+
+  /* ─── Canvas ─── */
+  #viewport { flex: 1; position: relative; overflow: hidden; }
+  #viewport canvas { display: block; }
+
+  /* ─── Level bar ─── */
+  #levelbar {
+    height: 110px; background: #16213e; border-top: 1px solid #333;
+    display: flex; align-items: center; padding: 8px; gap: 6px; overflow-x: auto; z-index: 10;
+  }
+  .lv-card {
+    min-width: 130px; height: 90px; background: #1a1a2e; border: 1px solid #333;
+    border-radius: 6px; padding: 8px; cursor: pointer; display: flex; flex-direction: column;
+    transition: 0.12s; flex-shrink: 0;
+  }
+  .lv-card:hover { border-color: #555; }
+  .lv-card.active { border-color: #FF6B8A; background: #2a1a2e; }
+  .lv-card .lv-name { font-size: 12px; font-weight: 600; color: #fff; margin-bottom: 3px; }
+  .lv-card .lv-stats { font-size: 10px; color: #666; line-height: 1.4; }
+  .lv-card .lv-acts { margin-top: auto; display: flex; gap: 3px; }
+  .lv-card .lv-acts button { font-size: 9px; padding: 2px 5px; background: #2a2a4e; border: 1px solid #333; color: #aaa; border-radius: 3px; cursor: pointer; }
+  .lv-add { min-width: 60px; height: 90px; border: 2px dashed #333; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #555; font-size: 24px; }
+  .lv-add:hover { border-color: #FF6B8A; color: #FF6B8A; }
+
+  /* ─── Play overlay ─── */
+  #play-overlay {
+    position: absolute; top: 40px; left: 0; right: 0; bottom: 110px;
+    background: rgba(0,0,0,0.85); display: none; z-index: 20;
+    flex-direction: column; align-items: center; justify-content: center;
+  }
+  #play-overlay.active { display: flex; }
+  #play-hud { position: absolute; top: 10px; left: 10px; font-size: 14px; color: #fff; font-family: monospace; }
+
+  /* ─── Modal ─── */
+  .modal-bg { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .modal-bg.show { display: flex; }
+  .modal { background: #1e1e3e; border: 1px solid #555; border-radius: 8px; padding: 20px; width: 500px; max-height: 80vh; overflow-y: auto; }
+  .modal h3 { margin-bottom: 12px; color: #FF6B8A; font-size: 15px; }
+  .modal textarea { width: 100%; height: 250px; background: #111; color: #0f0; border: 1px solid #333; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 11px; resize: vertical; }
+  .modal-btns { display: flex; gap: 6px; margin-top: 12px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>BounceBlob <span>Editor</span></h2>
+
+  <div class="section">
+    <div class="section-title">Tools</div>
+    <button class="tool-btn active" data-tool="select"><span class="tool-icon">↖</span> Select<span class="tool-key">S</span></button>
+    <button class="tool-btn" data-tool="pan"><span class="tool-icon">✋</span> Pan<span class="tool-key">H</span></button>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Obstacles</div>
+    <button class="tool-btn" data-tool="wall"><span class="tool-icon" style="background:#FFAB91;">▬</span> Wall<span class="tool-key">1</span></button>
+    <button class="tool-btn" data-tool="spinner"><span class="tool-icon" style="background:#F06292;">⟳</span> Spinner<span class="tool-key">2</span></button>
+    <button class="tool-btn" data-tool="mover"><span class="tool-icon" style="background:#7986CB;">↕</span> Mover<span class="tool-key">3</span></button>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Collectibles</div>
+    <button class="tool-btn" data-tool="coin"><span class="tool-icon" style="background:#FFD700;">●</span> Coin<span class="tool-key">4</span></button>
+    <button class="tool-btn" data-tool="star"><span class="tool-icon" style="background:#FFAB00;">★</span> Star<span class="tool-key">5</span></button>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Level</div>
+    <button class="tool-btn" data-tool="finish"><span class="tool-icon" style="background:#69F0AE;">🏁</span> Finish<span class="tool-key">6</span></button>
+  </div>
+
+  <div id="props">
+    <div class="section-title">Properties</div>
+    <div id="prop-content"><span style="color:#555; font-size:11px;">Select an element</span></div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="toolbar">
+    <button class="tb pink" id="btn-play">▶ Play</button>
+    <div class="tb-sep"></div>
+    <button class="tb green" id="btn-export-code">Copy Game Code</button>
+    <button class="tb" id="btn-export-json">Export JSON</button>
+    <button class="tb" id="btn-import">Import</button>
+    <div class="tb-sep"></div>
+    <button class="tb" id="btn-undo">Undo <span style="color:#555">Z</span></button>
+    <button class="tb red" id="btn-delete">Delete <span style="color:#ddd">Del</span></button>
+    <div class="tb-sep"></div>
+    <label style="font-size:11px; color:#666;">
+      <input type="checkbox" id="chk-snap" checked> Snap
+    </label>
+    <span class="tb-info" id="info">Ready</span>
+  </div>
+
+  <div id="viewport"></div>
+
+  <div id="levelbar"></div>
+</div>
+
+<!-- Import modal -->
+<div class="modal-bg" id="modal-import">
+  <div class="modal">
+    <h3>Import Level JSON</h3>
+    <textarea id="import-text" placeholder="Paste JSON or game code here..."></textarea>
+    <div class="modal-btns">
+      <button class="tb" onclick="document.getElementById('modal-import').classList.remove('show')">Cancel</button>
+      <button class="tb green" id="btn-do-import">Import</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ═══════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════
+const Y_MIN = -4.5, Y_MAX = 4.5;
+const PLAYER_RADIUS = 0.35;
+const COLORS = {
+  wall: 0xFFAB91, spinner: 0xF06292, mover: 0x7986CB,
+  coin: 0xFFD700, star: 0xFFAB00, finish: 0x69F0AE,
+  ground: [0x81C784, 0xFFCC80, 0xB39DDB],
+  selected: 0xFF6B8A,
+};
+
+// ═══════════════════════════════════
+//  STATE
+// ═══════════════════════════════════
+let levels = [];
+let lvlIdx = 0;
+let tool = 'select';
+let selectedIdx = -1;
+let snap = true;
+let undoStack = [];
+
+// Play mode state
+let playing = false;
+let playState = null;
+
+function cur() { return levels[lvlIdx]; }
+function els() { return cur().elements; }
+
+// ═══════════════════════════════════
+//  THREE.JS SETUP
+// ═══════════════════════════════════
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 300);
+// Front-facing 2.5D view — same as the game
+camera.position.set(30, 0, 14);
+camera.lookAt(30, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x87CEEB);
+renderer.shadowMap.enabled = true;
+viewport.appendChild(renderer.domElement);
+
+// Controls — pan only (no rotate, keep front view)
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.1;
+controls.enableRotate = false; // Lock to front view
+controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN };
+controls.panSpeed = 1.5;
+controls.screenSpacePanning = true;
+controls.enableZoom = false; // We handle zoom manually via Z position
+controls.target.set(30, 0, 0);
+
+const DEFAULT_CAM_Z = 14;
+
+// Custom zoom — move camera Z closer/further
+viewport.addEventListener('wheel', (e) => {
+  if (playing) return;
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 1.1 : 0.9;
+  camera.position.z = Math.max(4, Math.min(60, camera.position.z * factor));
+}, { passive: false });
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(20, 30, 15);
+dirLight.castShadow = true;
+scene.add(dirLight);
+scene.add(new THREE.DirectionalLight(0xFFE0B2, 0.3).translateZ(10));
+
+// Ground + ceiling
+function createBounds() {
+  const groundGeo = new THREE.BoxGeometry(300, 0.3, 8);
+  const groundMat = new THREE.MeshPhongMaterial({ color: 0x81C784 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.position.set(100, Y_MIN - 0.3, 0);
+  ground.receiveShadow = true;
+  ground.name = '__ground';
+  scene.add(ground);
+
+  const ceil = new THREE.Mesh(groundGeo, groundMat);
+  ceil.position.set(100, Y_MAX + 0.3, 0);
+  scene.add(ceil);
+
+  // Grid helper (vertical, in XY plane)
+  for (let x = 0; x <= 200; x += 5) {
+    const g = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(x, Y_MIN, 0), new THREE.Vector3(x, Y_MAX, 0)
+      ]),
+      new THREE.LineBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.2 })
+    );
+    g.name = '__grid';
+    scene.add(g);
+  }
+  for (let y = Math.ceil(Y_MIN); y <= Y_MAX; y++) {
+    const g = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, y, 0), new THREE.Vector3(200, y, 0)
+      ]),
+      new THREE.LineBasicMaterial({ color: y === 0 ? 0x555555 : 0x333333, transparent: true, opacity: y === 0 ? 0.4 : 0.15 })
+    );
+    g.name = '__grid';
+    scene.add(g);
+  }
+}
+createBounds();
+
+// ═══════════════════════════════════
+//  3D ELEMENT BUILDERS
+// ═══════════════════════════════════
+const meshGroup = new THREE.Group();
+meshGroup.name = '__elements';
+scene.add(meshGroup);
+
+let selectionBox = null;
+
+function mat(color, emissive = 0x000000) {
+  return new THREE.MeshPhongMaterial({ color, emissive, shininess: 60 });
+}
+
+function clearMeshes() {
+  while (meshGroup.children.length > 0) {
+    const c = meshGroup.children[0];
+    meshGroup.remove(c);
+  }
+  if (selectionBox) { scene.remove(selectionBox); selectionBox = null; }
+}
+
+function rebuildMeshes() {
+  clearMeshes();
+  els().forEach((el, i) => {
+    const m = buildElementMesh(el, i === selectedIdx);
+    if (m) { m.userData.elIdx = i; meshGroup.add(m); }
+  });
+  updateSelectionBox();
+}
+
+function buildElementMesh(el, selected) {
+  const col = selected ? COLORS.selected : COLORS[el.t] || 0xcccccc;
+  const group = new THREE.Group();
+
+  if (el.t === 'wall') {
+    const halfGap = el.gapH / 2;
+    const topH = Y_MAX - (el.gapY + halfGap);
+    const botH = (el.gapY - halfGap) - Y_MIN;
+    if (topH > 0) {
+      const w = new THREE.Mesh(new THREE.BoxGeometry(0.6, topH, 3), mat(col));
+      w.position.set(el.x, Y_MAX - topH / 2, 0);
+      w.castShadow = true;
+      group.add(w);
+    }
+    if (botH > 0) {
+      const w = new THREE.Mesh(new THREE.BoxGeometry(0.6, botH, 3), mat(col));
+      w.position.set(el.x, Y_MIN + botH / 2, 0);
+      w.castShadow = true;
+      group.add(w);
+    }
+  }
+  else if (el.t === 'spinner') {
+    const pivot = new THREE.Group();
+    pivot.position.set(el.x, el.y, 0);
+    const barGeo = new THREE.CylinderGeometry(0.12, 0.12, el.len * 2, 8);
+    barGeo.rotateZ(Math.PI / 2);
+    pivot.add(new THREE.Mesh(barGeo, mat(col)));
+    pivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(0xffffff)));
+    [-1, 1].forEach(s => {
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), mat(col));
+      tip.position.set(s * el.len, 0, 0);
+      pivot.add(tip);
+    });
+    group.add(pivot);
+  }
+  else if (el.t === 'mover') {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(el.w, el.h, 3), mat(col));
+    m.position.set(el.x, el.y, 0);
+    m.castShadow = true;
+    group.add(m);
+    // Range indicator
+    const arrow = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(el.x, el.y - el.range, 0.5),
+        new THREE.Vector3(el.x, el.y + el.range, 0.5),
+      ]),
+      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 })
+    );
+    group.add(arrow);
+  }
+  else if (el.t === 'coin') {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(col, 0x332200));
+    m.position.set(el.x, el.y, 0);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.26, 0.03, 8, 16),
+      new THREE.MeshPhongMaterial({ color: 0xFFF176, emissive: 0x554400, transparent: true, opacity: 0.5 })
+    );
+    ring.position.set(el.x, el.y, 0);
+    group.add(m);
+    group.add(ring);
+  }
+  else if (el.t === 'star') {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 6), mat(col, 0x442200));
+    m.position.set(el.x, el.y, 0);
+    group.add(m);
+  }
+  else if (el.t === 'finish') {
+    const left = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 10, 8), mat(col, 0x004D40));
+    left.position.set(el.x - 1.2, 0, 0);
+    group.add(left);
+    const right = left.clone();
+    right.position.set(el.x + 1.2, 0, 0);
+    group.add(right);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 0.5), mat(col, 0x004D40));
+    top.position.set(el.x, 4.5, 0);
+    group.add(top);
+  }
+
+  return group;
+}
+
+function updateSelectionBox() {
+  if (selectionBox) { scene.remove(selectionBox); selectionBox = null; }
+  if (selectedIdx < 0 || selectedIdx >= meshGroup.children.length) return;
+  const child = meshGroup.children[selectedIdx];
+  if (child) {
+    selectionBox = new THREE.BoxHelper(child, 0xFF6B8A);
+    scene.add(selectionBox);
+  }
+}
+
+// ═══════════════════════════════════
+//  RAYCASTING
+// ═══════════════════════════════════
+const raycaster = new THREE.Raycaster();
+const gamePlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // XY plane at z=0
+const _pt = new THREE.Vector3();
+
+function getWorldPos(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const my = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera({ x: mx, y: my }, camera);
+  return raycaster.ray.intersectPlane(gamePlane, _pt) ? _pt.clone() : null;
+}
+
+function pickElement(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const my = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera({ x: mx, y: my }, camera);
+
+  for (let i = meshGroup.children.length - 1; i >= 0; i--) {
+    if (raycaster.intersectObject(meshGroup.children[i], true).length > 0) return i;
+  }
+  return -1;
+}
+
+function snapVal(v) { return snap ? Math.round(v * 2) / 2 : v; }
+
+// ═══════════════════════════════════
+//  ELEMENT DEFAULTS
+// ═══════════════════════════════════
+function defaultEl(type, x, y) {
+  x = snapVal(x); y = snapVal(y);
+  switch (type) {
+    case 'wall': return { t: 'wall', x, gapY: y, gapH: 3 };
+    case 'spinner': return { t: 'spinner', x, y, len: 2.5, spd: 2 };
+    case 'mover': return { t: 'mover', x, y, range: 2.5, spd: 1.5, w: 1.2, h: 5 };
+    case 'coin': return { t: 'coin', x, y };
+    case 'star': return { t: 'star', x, y };
+    case 'finish': return { t: 'finish', x };
+  }
+}
+
+// ═══════════════════════════════════
+//  UNDO
+// ═══════════════════════════════════
+function saveUndo() { undoStack.push(JSON.stringify(levels)); if (undoStack.length > 40) undoStack.shift(); }
+function undo() {
+  if (!undoStack.length) return;
+  levels = JSON.parse(undoStack.pop());
+  selectedIdx = -1;
+  rebuildMeshes();
+  updateProps();
+  renderLevels();
+}
+
+// ═══════════════════════════════════
+//  PROPERTIES
+// ═══════════════════════════════════
+function updateProps() {
+  const c = document.getElementById('prop-content');
+  if (selectedIdx < 0 || selectedIdx >= els().length) {
+    c.innerHTML = '<span style="color:#555; font-size:11px;">Select an element</span>';
+    return;
+  }
+  const el = els()[selectedIdx];
+  let h = `<div style="color:#FF6B8A; font-weight:600; margin-bottom:6px;">${el.t.toUpperCase()}</div>`;
+
+  const f = (label, key, step = 0.5, min = '', max = '') => {
+    h += `<div class="prop-row"><label>${label}</label><input type="number" value="${el[key] ?? ''}" step="${step}" ${min !== '' ? `min="${min}"` : ''} ${max !== '' ? `max="${max}"` : ''} data-key="${key}"></div>`;
+  };
+
+  f('X', 'x');
+  if (el.t === 'wall') { f('Gap Y', 'gapY', 0.5, -4, 4); f('Gap H', 'gapH', 0.5, 1, 8); }
+  else if (el.t === 'spinner') { f('Y', 'y'); f('Length', 'len', 0.5, 0.5, 5); f('Speed', 'spd', 0.5, -5, 5); }
+  else if (el.t === 'mover') { f('Y', 'y'); f('W', 'w', 0.2); f('H', 'h', 0.5); f('Range', 'range', 0.5); f('Speed', 'spd', 0.5); }
+  else if (el.t === 'coin' || el.t === 'star') { f('Y', 'y'); }
+
+  h += `<button class="tb red" style="width:100%; margin-top:8px;" onclick="window._deleteSelected()">Delete</button>`;
+  c.innerHTML = h;
+
+  c.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      saveUndo();
+      els()[selectedIdx][inp.dataset.key] = parseFloat(inp.value);
+      rebuildMeshes();
+    });
+  });
+}
+
+// ═══════════════════════════════════
+//  INPUT
+// ═══════════════════════════════════
+let dragging = false, dragStart = null, dragElIdx = -1, dragOffset = { x: 0, y: 0 };
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (playing) return;
+  if (e.button === 1 || (e.button === 0 && tool === 'pan')) return; // handled by OrbitControls or pan
+
+  if (e.button !== 0) return;
+  const pos = getWorldPos(e);
+  if (!pos) return;
+
+  if (tool === 'select') {
+    const idx = pickElement(e);
+    selectedIdx = idx;
+    if (idx >= 0) {
+      dragging = true;
+      const el = els()[idx];
+      dragOffset.x = pos.x - el.x;
+      dragOffset.y = pos.y - (el.y ?? el.gapY ?? 0);
+      saveUndo();
+    }
+    rebuildMeshes();
+    updateProps();
+  } else {
+    saveUndo();
+    const el = defaultEl(tool, pos.x, pos.y);
+    if (el) {
+      els().push(el);
+      selectedIdx = els().length - 1;
+      rebuildMeshes();
+      updateProps();
+      renderLevels();
+    }
+  }
+});
+
+renderer.domElement.addEventListener('mousemove', (e) => {
+  if (playing) return;
+  const pos = getWorldPos(e);
+  if (!pos) return;
+
+  document.getElementById('info').textContent = `X: ${pos.x.toFixed(1)}  Y: ${pos.y.toFixed(1)}  |  ${els().length} elements`;
+
+  if (dragging && selectedIdx >= 0) {
+    const el = els()[selectedIdx];
+    el.x = snapVal(pos.x - dragOffset.x);
+    if ('y' in el) el.y = snapVal(pos.y - dragOffset.y);
+    if ('gapY' in el) el.gapY = snapVal(pos.y - dragOffset.y);
+    rebuildMeshes();
+    updateProps();
+  }
+});
+
+renderer.domElement.addEventListener('mouseup', () => { dragging = false; });
+
+// Keyboard
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (playing && e.code !== 'Escape') return;
+
+  const key = e.code;
+  if (key === 'Delete' || key === 'Backspace') { e.preventDefault(); window._deleteSelected(); }
+  if (key === 'KeyZ' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); undo(); }
+  if (key === 'KeyD' && selectedIdx >= 0) { e.preventDefault(); saveUndo(); const c = JSON.parse(JSON.stringify(els()[selectedIdx])); c.x += 2; els().push(c); selectedIdx = els().length - 1; rebuildMeshes(); updateProps(); }
+  if (key === 'Escape') { if (playing) stopPlay(); else { selectedIdx = -1; rebuildMeshes(); updateProps(); } }
+
+  // Tool shortcuts
+  if (key === 'KeyS') setTool('select');
+  if (key === 'KeyH') setTool('pan');
+  if (key === 'Digit1') setTool('wall');
+  if (key === 'Digit2') setTool('spinner');
+  if (key === 'Digit3') setTool('mover');
+  if (key === 'Digit4') setTool('coin');
+  if (key === 'Digit5') setTool('star');
+  if (key === 'Digit6') setTool('finish');
+});
+
+// Play mode input
+let playHolding = false;
+window.addEventListener('keydown', (e) => {
+  if (!playing) return;
+  if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') { e.preventDefault(); playHolding = true; }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') playHolding = false;
+});
+renderer.domElement.addEventListener('mousedown', (e) => { if (playing && e.button === 0) playHolding = true; });
+renderer.domElement.addEventListener('mouseup', (e) => { if (playing && e.button === 0) playHolding = false; });
+
+// ═══════════════════════════════════
+//  TOOLS
+// ═══════════════════════════════════
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+  // Enable/disable orbit controls left button based on tool
+  if (t === 'pan') {
+    controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+  } else {
+    controls.mouseButtons.LEFT = null;
+  }
+  renderer.domElement.style.cursor = t === 'pan' ? 'grab' : (t === 'select' ? 'default' : 'crosshair');
+}
+
+document.querySelectorAll('.tool-btn').forEach(b => {
+  b.addEventListener('click', () => setTool(b.dataset.tool));
+});
+
+window._deleteSelected = () => {
+  if (selectedIdx < 0) return;
+  saveUndo();
+  els().splice(selectedIdx, 1);
+  selectedIdx = -1;
+  rebuildMeshes();
+  updateProps();
+  renderLevels();
+};
+
+// ═══════════════════════════════════
+//  PLAY MODE
+// ═══════════════════════════════════
+let playerMesh = null;
+
+function createPlayerMesh() {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(PLAYER_RADIUS, 24, 24), mat(0xFF6B8A)));
+  [-1, 1].forEach(s => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 12), mat(0xffffff));
+    eye.position.set(s * 0.13, 0.08, PLAYER_RADIUS * 0.85);
+    g.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 10), mat(0x2c2c2c));
+    pupil.position.set(s * 0.13, 0.06, PLAYER_RADIUS * 0.92);
+    g.add(pupil);
+  });
+  return g;
+}
+
+// Save editor camera state for restore
+let savedCam = { px: 30, py: 0, pz: DEFAULT_CAM_Z, tx: 30, ty: 0, tz: 0 };
+
+function saveCameraState() {
+  savedCam = {
+    px: camera.position.x, py: camera.position.y, pz: camera.position.z,
+    tx: controls.target.x, ty: controls.target.y, tz: controls.target.z,
+  };
+}
+
+function restoreCameraState() {
+  camera.position.set(savedCam.px, savedCam.py, savedCam.pz);
+  controls.target.set(savedCam.tx, savedCam.ty, savedCam.tz);
+}
+
+function startPlay() {
+  saveCameraState();
+  playing = true;
+  playHolding = false;
+  if (!playerMesh) { playerMesh = createPlayerMesh(); }
+  scene.add(playerMesh);
+  playerMesh.visible = true;
+  playerMesh.scale.set(1, 1, 1);
+
+  playState = { x: 0, y: 0, alive: true, time: 0, deathTimer: 0, coins: 0, stars: 0, collected: new Set() };
+
+  // Start camera straight-on, slightly ahead of player
+  camera.position.set(5, 0, DEFAULT_CAM_Z);
+  controls.target.set(5, 0, 0);
+  controls.enabled = false;
+
+  document.getElementById('btn-play').textContent = '■ Stop (Esc)';
+  document.getElementById('btn-play').classList.add('red');
+  document.getElementById('btn-play').classList.remove('pink');
+}
+
+function showAllMeshes() {
+  for (const child of meshGroup.children) child.visible = true;
+}
+
+function stopPlay() {
+  playing = false;
+  if (playerMesh) { scene.remove(playerMesh); playerMesh.visible = false; }
+  playState = null;
+  showAllMeshes();
+  controls.enabled = true;
+  restoreCameraState();
+  document.getElementById('btn-play').textContent = '▶ Play';
+  document.getElementById('btn-play').classList.remove('red');
+  document.getElementById('btn-play').classList.add('pink');
+}
+
+function restartPlay() {
+  playHolding = false;
+  playState = { x: 0, y: 0, alive: true, time: 0, deathTimer: 0, coins: 0, stars: 0, collected: new Set() };
+  showAllMeshes();
+  playerMesh.visible = true;
+}
+
+function updatePlay(dt) {
+  if (!playState) return;
+  const s = playState;
+  const speed = cur().speed || 5;
+
+  // Dead state — wait for input to restart
+  if (!s.alive) {
+    s.deathTimer += dt;
+    playerMesh.visible = false;
+    document.getElementById('info').textContent = `DEAD at X=${Math.round(s.x)} | Click/Space to retry | Esc to stop`;
+    if (playHolding && s.deathTimer > 0.3) {
+      restartPlay();
+    }
+    // Camera stays
+    return;
+  }
+
+  s.time += dt;
+
+  // 45-degree physics
+  s.y += (playHolding ? speed : -speed) * dt;
+  s.x += speed * dt;
+
+  // Boundary death
+  if (s.y < -5.5 || s.y > 5.5) {
+    s.alive = false; s.deathTimer = 0;
+    return;
+  }
+
+  // Collision detection
+  const pr = PLAYER_RADIUS * 0.8;
+  const elements = els();
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i];
+    if (el.t === 'wall') {
+      const halfGap = el.gapH / 2;
+      const hw = 0.3;
+      if (s.x + pr > el.x - hw && s.x - pr < el.x + hw) {
+        // In top wall?
+        const topWallBottom = el.gapY + halfGap;
+        const botWallTop = el.gapY - halfGap;
+        if (s.y + pr > topWallBottom || s.y - pr < botWallTop) {
+          s.alive = false; s.deathTimer = 0; return;
+        }
+      }
+    }
+    if (el.t === 'spinner') {
+      // Sample points along spinner arm
+      for (let i = 0; i <= 8; i++) {
+        const t = (i / 8) * 2 - 1;
+        const dx = s.x - (el.x + el.len * t);
+        const dy = s.y - el.y;
+        if (Math.sqrt(dx * dx + dy * dy) < pr + 0.15) {
+          s.alive = false; s.deathTimer = 0; return;
+        }
+      }
+    }
+    if (el.t === 'mover') {
+      const cy = el.y + Math.sin(s.time * el.spd) * el.range;
+      if (s.x + pr > el.x - el.w / 2 && s.x - pr < el.x + el.w / 2 &&
+          s.y + pr > cy - el.h / 2 && s.y - pr < cy + el.h / 2) {
+        s.alive = false; s.deathTimer = 0; return;
+      }
+    }
+    if (el.t === 'finish' && s.x > el.x - 0.5) {
+      document.getElementById('info').textContent = `Level complete! Coins: ${s.coins} Stars: ${s.stars} | Esc to stop`;
+      s.alive = false; s.deathTimer = 0;
+      return;
+    }
+    // Coin & star collection
+    if ((el.t === 'coin' || el.t === 'star') && !s.collected.has(i)) {
+      const dx = s.x - el.x;
+      const dy = s.y - el.y;
+      if (Math.sqrt(dx * dx + dy * dy) < pr + 0.4) {
+        s.collected.add(i);
+        if (el.t === 'coin') s.coins++;
+        else s.stars++;
+        // Hide the mesh in meshGroup
+        for (const child of meshGroup.children) {
+          if (child.userData.elIdx === i) { child.visible = false; break; }
+        }
+      }
+    }
+  }
+
+  // Update player mesh
+  playerMesh.position.set(s.x, s.y, 0.5); // Slightly in front
+  playerMesh.rotation.z = playHolding ? Math.PI / 4 : -Math.PI / 4;
+  playerMesh.scale.set(0.9, 1.1, 1);
+
+  // Camera follow — front view, same as game
+  const targetCamX = s.x + 3;
+  const targetCamY = s.y * 0.3 + 2.5;
+  camera.position.x += (targetCamX - camera.position.x) * 4 * dt;
+  camera.position.y += (targetCamY - camera.position.y) * 3 * dt;
+  camera.position.z = DEFAULT_CAM_Z;
+  controls.target.set(camera.position.x, camera.position.y, 0);
+
+  document.getElementById('info').textContent = `Playing: X=${Math.round(s.x)} | Speed: ${speed} | Coins: ${s.coins} Stars: ${s.stars} | ${playHolding ? '▲ UP' : '▼ DOWN'}`;
+}
+
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (playing) stopPlay(); else startPlay();
+});
+
+// ═══════════════════════════════════
+//  LEVEL LIST
+// ═══════════════════════════════════
+function renderLevels() {
+  const bar = document.getElementById('levelbar');
+  bar.innerHTML = '';
+
+  levels.forEach((lv, i) => {
+    const card = document.createElement('div');
+    card.className = 'lv-card' + (i === lvlIdx ? ' active' : '');
+    const coins = lv.elements.filter(e => e.t === 'coin').length;
+    const stars = lv.elements.filter(e => e.t === 'star').length;
+    const fx = lv.elements.find(e => e.t === 'finish')?.x || '?';
+    card.innerHTML = `
+      <div class="lv-name">${lv.name}</div>
+      <div class="lv-stats">Spd: ${lv.speed} | End: X=${fx}<br>${lv.elements.length} el · ${coins}c · ${stars}s</div>
+      <div class="lv-acts">
+        <button onclick="event.stopPropagation(); window._renameLevel(${i})">Name</button>
+        <button onclick="event.stopPropagation(); window._editSpeed(${i})">Spd</button>
+        ${levels.length > 1 ? `<button onclick="event.stopPropagation(); window._removeLevel(${i})">✕</button>` : ''}
+      </div>`;
+    card.onclick = () => { lvlIdx = i; selectedIdx = -1; rebuildMeshes(); updateProps(); renderLevels(); };
+    bar.appendChild(card);
+  });
+
+  const add = document.createElement('div');
+  add.className = 'lv-add';
+  add.textContent = '+';
+  add.onclick = () => { saveUndo(); levels.push({ name: `Level ${levels.length + 1}`, speed: 5 + levels.length * 0.5, bgIdx: levels.length % 3, elements: [] }); lvlIdx = levels.length - 1; selectedIdx = -1; rebuildMeshes(); updateProps(); renderLevels(); };
+  bar.appendChild(add);
+}
+
+window._renameLevel = (i) => { const n = prompt('Name:', levels[i].name); if (n) { levels[i].name = n; renderLevels(); } };
+window._editSpeed = (i) => { const s = prompt('Speed:', levels[i].speed); if (s) { levels[i].speed = parseFloat(s); renderLevels(); } };
+window._removeLevel = (i) => { if (!confirm('Delete?')) return; saveUndo(); levels.splice(i, 1); if (lvlIdx >= levels.length) lvlIdx--; selectedIdx = -1; rebuildMeshes(); updateProps(); renderLevels(); };
+
+// ═══════════════════════════════════
+//  EXPORT / IMPORT
+// ═══════════════════════════════════
+document.getElementById('btn-export-code').addEventListener('click', () => {
+  let code = 'const LEVELS = [\n';
+  levels.forEach(lv => {
+    code += `  {\n    name: "${lv.name}",\n    speed: ${lv.speed},\n    bgIdx: ${lv.bgIdx || 0},\n    elements: [\n`;
+    lv.elements.forEach(el => {
+      const props = Object.entries(el).map(([k, v]) => `${k}: ${typeof v === 'string' ? `'${v}'` : v}`).join(', ');
+      code += `      { ${props} },\n`;
+    });
+    code += `    ]\n  },\n`;
+  });
+  code += '];\n';
+  navigator.clipboard.writeText(code).then(() => alert('Game code copied! Paste into bounceblob.jsx'));
+});
+
+document.getElementById('btn-export-json').addEventListener('click', () => {
+  navigator.clipboard.writeText(JSON.stringify(levels, null, 2)).then(() => alert('JSON copied!'));
+});
+
+document.getElementById('btn-import').addEventListener('click', () => {
+  document.getElementById('modal-import').classList.add('show');
+});
+
+document.getElementById('btn-do-import').addEventListener('click', () => {
+  try {
+    const text = document.getElementById('import-text').value.trim();
+    const data = JSON.parse(text);
+    saveUndo();
+    levels = Array.isArray(data) ? data : [data];
+    lvlIdx = 0; selectedIdx = -1;
+    rebuildMeshes(); updateProps(); renderLevels();
+    document.getElementById('modal-import').classList.remove('show');
+  } catch (e) { alert('Invalid JSON: ' + e.message); }
+});
+
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-delete').addEventListener('click', () => window._deleteSelected());
+document.getElementById('chk-snap').addEventListener('change', (e) => { snap = e.target.checked; });
+
+// ═══════════════════════════════════
+//  LOAD GAME LEVELS
+// ═══════════════════════════════════
+levels = [
+  { name: "Sunny Meadow", speed: 5, bgIdx: 0, elements: [
+    { t: 'coin', x: 6, y: 0 }, { t: 'coin', x: 7, y: 0.5 }, { t: 'coin', x: 8, y: 1 }, { t: 'coin', x: 9, y: 0.5 }, { t: 'coin', x: 10, y: 0 },
+    { t: 'wall', x: 16, gapY: 0, gapH: 3.5 }, { t: 'coin', x: 20, y: 1 }, { t: 'coin', x: 21, y: 1.5 }, { t: 'coin', x: 22, y: 1 },
+    { t: 'spinner', x: 28, y: 0, len: 2.5, spd: 1.5 }, { t: 'star', x: 28, y: 3.5 },
+    { t: 'wall', x: 35, gapY: 1.5, gapH: 3 }, { t: 'wall', x: 40, gapY: -1, gapH: 3 }, { t: 'coin', x: 37, y: 1.5 }, { t: 'coin', x: 38, y: 1.5 },
+    { t: 'coin', x: 45, y: -1 }, { t: 'coin', x: 46, y: 0 }, { t: 'coin', x: 47, y: 1 }, { t: 'coin', x: 48, y: 2 }, { t: 'coin', x: 49, y: 1 }, { t: 'coin', x: 50, y: 0 },
+    { t: 'star', x: 47.5, y: 3.2 }, { t: 'spinner', x: 55, y: 0, len: 3, spd: 2 }, { t: 'star', x: 60, y: -2.5 }, { t: 'finish', x: 65 },
+  ]},
+  { name: "Candy Canyon", speed: 5.5, bgIdx: 1, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 }, { t: 'coin', x: 7, y: 0 },
+    { t: 'wall', x: 12, gapY: 1, gapH: 2.8 }, { t: 'spinner', x: 18, y: 0, len: 2.5, spd: 2 }, { t: 'coin', x: 18, y: 3 },
+    { t: 'wall', x: 24, gapY: -1.5, gapH: 2.5 }, { t: 'wall', x: 28, gapY: 1.5, gapH: 2.5 }, { t: 'star', x: 26, y: 0 },
+    { t: 'coin', x: 32, y: -1 }, { t: 'coin', x: 33, y: -0.5 }, { t: 'coin', x: 34, y: 0 },
+    { t: 'spinner', x: 38, y: 1, len: 2, spd: -2.5 }, { t: 'spinner', x: 42, y: -1, len: 2, spd: 2.5 }, { t: 'star', x: 40, y: 3.8 },
+    { t: 'mover', x: 48, y: 0, range: 2.5, spd: 1.5, w: 1.2, h: 5 },
+    { t: 'coin', x: 52, y: 2 }, { t: 'coin', x: 53, y: 2 }, { t: 'coin', x: 54, y: 2 },
+    { t: 'wall', x: 58, gapY: 0, gapH: 2.2 }, { t: 'spinner', x: 63, y: 0, len: 3.5, spd: 2 }, { t: 'star', x: 66, y: -3 }, { t: 'finish', x: 72 },
+  ]},
+  { name: "Cloud Kingdom", speed: 6, bgIdx: 2, elements: [
+    { t: 'coin', x: 5, y: 1 }, { t: 'coin', x: 6, y: 1.5 }, { t: 'spinner', x: 10, y: 0, len: 2.5, spd: 2.5 },
+    { t: 'wall', x: 16, gapY: 2, gapH: 2.2 }, { t: 'wall', x: 19, gapY: -2, gapH: 2.2 }, { t: 'wall', x: 22, gapY: 0.5, gapH: 2 }, { t: 'star', x: 19, y: 2 },
+    { t: 'spinner', x: 27, y: 1, len: 2.5, spd: -3 }, { t: 'spinner', x: 30, y: -1, len: 2.5, spd: 3 }, { t: 'coin', x: 28, y: -2 }, { t: 'coin', x: 29, y: -2 },
+    { t: 'mover', x: 35, y: 0, range: 3, spd: 2, w: 0.8, h: 6 }, { t: 'mover', x: 39, y: 0, range: 3, spd: -2, w: 0.8, h: 6 }, { t: 'star', x: 37, y: 0 },
+    { t: 'coin', x: 43, y: 0 }, { t: 'coin', x: 44, y: 0.5 }, { t: 'coin', x: 45, y: 1 },
+    { t: 'spinner', x: 50, y: 0, len: 3, spd: 2 }, { t: 'wall', x: 55, gapY: -1, gapH: 2 }, { t: 'spinner', x: 59, y: 1, len: 2, spd: -3 },
+    { t: 'wall', x: 63, gapY: 1.5, gapH: 2 }, { t: 'star', x: 61, y: -3.5 },
+    { t: 'coin', x: 67, y: 0 }, { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 0 }, { t: 'coin', x: 70, y: 0 }, { t: 'coin', x: 71, y: 0 },
+    { t: 'finish', x: 78 },
+  ]},
+];
+
+// ═══════════════════════════════════
+//  RENDER LOOP
+// ═══════════════════════════════════
+let lastTime = performance.now();
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  if (playing) {
+    updatePlay(dt);
+  }
+
+  if (!playing) controls.update();
+
+  // Resize check
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  if (renderer.domElement.width !== w * renderer.getPixelRatio() || renderer.domElement.height !== h * renderer.getPixelRatio()) {
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+
+  if (selectionBox && selectedIdx >= 0 && meshGroup.children[selectedIdx]) {
+    selectionBox.setFromObject(meshGroup.children[selectedIdx]);
+  }
+
+  renderer.render(scene, camera);
+}
+
+// Init
+rebuildMeshes();
+renderLevels();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
