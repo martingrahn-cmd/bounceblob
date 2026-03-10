@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // ─── Constants ───
 const PLAYER_RADIUS = 0.35;
@@ -124,6 +125,78 @@ function mat(color, emissive = 0x000000) {
   });
 }
 
+// ─── GLTF Asset Loading ───
+const gltfLoader = new GLTFLoader();
+const assetCache = {};
+
+function loadAsset(name, color = 'neutral') {
+  const key = `${color}/${name}`;
+  if (assetCache[key]) return Promise.resolve(assetCache[key]);
+  const suffix = color === 'neutral' ? '' : `_${color}`;
+  const path = `assets/kaykit/${color}/${name}${suffix}.gltf`;
+  return new Promise((resolve) => {
+    gltfLoader.load(path, (gltf) => {
+      assetCache[key] = gltf.scene;
+      resolve(gltf.scene);
+    }, undefined, () => { resolve(null); });
+  });
+}
+
+function cloneAsset(cached) {
+  if (!cached) return null;
+  const clone = cached.clone();
+  clone.traverse(c => {
+    if (c.isMesh) {
+      c.material = c.material.clone();
+      c.castShadow = true;
+      c.receiveShadow = true;
+    }
+  });
+  return clone;
+}
+
+function getAsset(name, color = 'neutral') {
+  const key = `${color}/${name}`;
+  return cloneAsset(assetCache[key]);
+}
+
+// Fit a GLTF model into a target box (width, height, depth) centered at (cx, cy, cz)
+function fitAsset(asset, targetW, targetH, targetD, cx, cy, cz) {
+  if (!asset) return null;
+  const box = new THREE.Box3().setFromObject(asset);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  // Scale uniformly to fill target box
+  const sx = targetW / Math.max(size.x, 0.01);
+  const sy = targetH / Math.max(size.y, 0.01);
+  const sz = targetD / Math.max(size.z, 0.01);
+  asset.scale.set(sx, sy, sz);
+  // Offset so model center ends up at (cx, cy, cz)
+  asset.position.set(
+    cx - center.x * sx,
+    cy - center.y * sy,
+    cz - center.z * sz
+  );
+  return asset;
+}
+
+const GAME_ASSETS = {
+  wall: { name: 'barrier_4x1x4', color: 'red' },
+  spinner_hub: { name: 'bomb', color: 'neutral' },
+  spinner_tip: { name: 'bomb', color: 'neutral' },
+  mover: { name: 'barrier_2x1x2', color: 'blue' },
+  coin: { name: 'diamond', color: 'blue' },
+  star: { name: 'star', color: 'yellow' },
+  finish: { name: 'signage_finish_wide', color: 'neutral' },
+  cannon: { name: 'cannon_base', color: 'blue' },
+};
+
+async function preloadGameAssets() {
+  await Promise.all(
+    Object.values(GAME_ASSETS).map(a => loadAsset(a.name, a.color))
+  );
+}
+
 // ─── Build the Player (cute blob) ───
 function createPlayer() {
   const group = new THREE.Group();
@@ -212,6 +285,19 @@ function buildWorld(scene, existingGroup) {
     sign.position.set(offset + 2, 3.5, 1);
     group.add(sign);
 
+    // Cannon at level start — base flat on ground, turret tilted 45°
+    const cannonAsset = getAsset(GAME_ASSETS.cannon.name, GAME_ASSETS.cannon.color);
+    if (cannonAsset) {
+      cannonAsset.scale.setScalar(0.35);
+      cannonAsset.position.set(offset - 1, Y_MIN, 0);
+      cannonAsset.traverse(child => {
+        if (child.name && child.name.includes('turret')) {
+          child.rotation.x = Math.PI / 4; // tilt barrel forward-up 45°
+        }
+      });
+      group.add(cannonAsset);
+    }
+
     // Build level elements with offset
     levelData.elements.forEach((el, idx) => {
       const ex = el.x + offset; // offset all X positions
@@ -225,20 +311,28 @@ function buildWorld(scene, existingGroup) {
         const wColor = wallColors[idx % wallColors.length];
 
         if (topH > 0) {
-          const topWall = new THREE.Mesh(
-            new THREE.BoxGeometry(wallWidth, topH, wallDepth), mat(wColor)
-          );
-          topWall.position.set(ex, Y_MAX - topH / 2, 0);
-          group.add(topWall);
-          colliders.push({ type: 'box', x: ex, y: Y_MAX - topH / 2, hw: wallWidth / 2, hh: topH / 2 });
+          const asset = getAsset(GAME_ASSETS.wall.name, GAME_ASSETS.wall.color);
+          const yC = Y_MAX - topH / 2;
+          if (fitAsset(asset, wallWidth, topH, wallDepth, ex, yC, 0)) {
+            group.add(asset);
+          } else {
+            const w = new THREE.Mesh(new THREE.BoxGeometry(wallWidth, topH, wallDepth), mat(wColor));
+            w.position.set(ex, yC, 0);
+            group.add(w);
+          }
+          colliders.push({ type: 'box', x: ex, y: yC, hw: wallWidth / 2, hh: topH / 2 });
         }
         if (botH > 0) {
-          const botWall = new THREE.Mesh(
-            new THREE.BoxGeometry(wallWidth, botH, wallDepth), mat(wColor)
-          );
-          botWall.position.set(ex, Y_MIN + botH / 2, 0);
-          group.add(botWall);
-          colliders.push({ type: 'box', x: ex, y: Y_MIN + botH / 2, hw: wallWidth / 2, hh: botH / 2 });
+          const asset = getAsset(GAME_ASSETS.wall.name, GAME_ASSETS.wall.color);
+          const yC = Y_MIN + botH / 2;
+          if (fitAsset(asset, wallWidth, botH, wallDepth, ex, yC, 0)) {
+            group.add(asset);
+          } else {
+            const w = new THREE.Mesh(new THREE.BoxGeometry(wallWidth, botH, wallDepth), mat(wColor));
+            w.position.set(ex, yC, 0);
+            group.add(w);
+          }
+          colliders.push({ type: 'box', x: ex, y: yC, hw: wallWidth / 2, hh: botH / 2 });
         }
       }
       else if (el.t === 'spinner') {
@@ -248,20 +342,28 @@ function buildWorld(scene, existingGroup) {
         barGeo.rotateZ(Math.PI / 2);
         const barMat = mat(obstColors[idx % obstColors.length]);
         pivot.add(new THREE.Mesh(barGeo, barMat));
-        pivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(0xFFFFFF)));
+
+        const hub = getAsset(GAME_ASSETS.spinner_hub.name, GAME_ASSETS.spinner_hub.color);
+        if (fitAsset(hub, 0.5, 0.5, 0.5, 0, 0, 0)) { pivot.add(hub); }
+        else { pivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(0xFFFFFF))); }
+
         [-1, 1].forEach(side => {
-          const tip = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), barMat);
-          tip.position.set(side * el.len, 0, 0);
-          pivot.add(tip);
+          const tip = getAsset(GAME_ASSETS.spinner_tip.name, GAME_ASSETS.spinner_tip.color);
+          if (fitAsset(tip, 0.4, 0.4, 0.4, side * el.len, 0, 0)) { pivot.add(tip); }
+          else { const t = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), barMat); t.position.set(side * el.len, 0, 0); pivot.add(t); }
         });
         group.add(pivot);
         colliders.push({ mesh: pivot, type: 'spinner', x: ex, y: el.y, len: el.len, spd: el.spd, angle: 0 });
       }
       else if (el.t === 'mover') {
-        const moverMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(el.w, el.h, 3), mat(obstColors[idx % obstColors.length])
-        );
-        moverMesh.position.set(ex, el.y, 0);
+        const asset = getAsset(GAME_ASSETS.mover.name, GAME_ASSETS.mover.color);
+        let moverMesh;
+        if (fitAsset(asset, el.w, el.h, 3, ex, el.y, 0)) {
+          moverMesh = asset;
+        } else {
+          moverMesh = new THREE.Mesh(new THREE.BoxGeometry(el.w, el.h, 3), mat(obstColors[idx % obstColors.length]));
+          moverMesh.position.set(ex, el.y, 0);
+        }
         group.add(moverMesh);
         colliders.push({
           mesh: moverMesh, type: 'mover', x: ex, baseY: el.y,
@@ -269,71 +371,78 @@ function buildWorld(scene, existingGroup) {
         });
       }
       else if (el.t === 'coin') {
-        const coinGroup = new THREE.Group();
-        coinGroup.add(new THREE.Mesh(
-          new THREE.SphereGeometry(COIN_RADIUS, 12, 12), mat(PAL.coin, 0x332200)
-        ));
-        coinGroup.add(new THREE.Mesh(
-          new THREE.TorusGeometry(COIN_RADIUS * 1.3, 0.03, 8, 16),
-          new THREE.MeshPhongMaterial({ color: PAL.coinGlow, emissive: 0x554400, transparent: true, opacity: 0.5 })
-        ));
-        coinGroup.position.set(ex, el.y, 0);
-        group.add(coinGroup);
-        collectibles.push({ mesh: coinGroup, type: 'coin', x: ex, y: el.y, collected: false, levelIdx: lvlIdx });
+        let coinMesh;
+        const asset = getAsset(GAME_ASSETS.coin.name, GAME_ASSETS.coin.color);
+        if (fitAsset(asset, 0.5, 0.5, 0.5, ex, el.y, 0)) {
+          coinMesh = asset;
+        } else {
+          coinMesh = new THREE.Group();
+          coinMesh.add(new THREE.Mesh(new THREE.SphereGeometry(COIN_RADIUS, 12, 12), mat(PAL.coin, 0x332200)));
+          coinMesh.position.set(ex, el.y, 0);
+        }
+        group.add(coinMesh);
+        collectibles.push({ mesh: coinMesh, type: 'coin', x: ex, y: el.y, collected: false, levelIdx: lvlIdx });
       }
       else if (el.t === 'star') {
-        const starGroup = new THREE.Group();
-        starGroup.add(new THREE.Mesh(
-          new THREE.SphereGeometry(STAR_RADIUS, 6, 6), mat(PAL.star, 0x442200)
-        ));
-        starGroup.add(new THREE.Mesh(
-          new THREE.SphereGeometry(STAR_RADIUS * 0.6, 12, 12),
-          new THREE.MeshPhongMaterial({ color: 0xFFFFFF, emissive: 0xFFAB00, transparent: true, opacity: 0.6 })
-        ));
-        starGroup.position.set(ex, el.y, 0);
-        group.add(starGroup);
-        collectibles.push({ mesh: starGroup, type: 'star', x: ex, y: el.y, collected: false, levelIdx: lvlIdx });
+        let starMesh;
+        const asset = getAsset(GAME_ASSETS.star.name, GAME_ASSETS.star.color);
+        if (fitAsset(asset, 0.7, 0.7, 0.7, ex, el.y, 0)) {
+          starMesh = asset;
+        } else {
+          starMesh = new THREE.Group();
+          starMesh.add(new THREE.Mesh(new THREE.SphereGeometry(STAR_RADIUS, 6, 6), mat(PAL.star, 0x442200)));
+          starMesh.position.set(ex, el.y, 0);
+        }
+        group.add(starMesh);
+        collectibles.push({ mesh: starMesh, type: 'star', x: ex, y: el.y, collected: false, levelIdx: lvlIdx });
       }
       else if (el.t === 'finish') {
-        // Only add a visible finish arch for the LAST level
-        // For intermediate levels, add a checkpoint marker
         const isLast = lvlIdx === LEVELS.length - 1;
 
         if (isLast) {
-          const archLeft = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.15, 0.15, 10, 8), mat(PAL.finish, 0x004D40)
-          );
-          archLeft.position.set(ex - 1.2, 0, 0);
-          group.add(archLeft);
-          const archRight = archLeft.clone();
-          archRight.position.set(ex + 1.2, 0, 0);
-          group.add(archRight);
-          const archTop = new THREE.Mesh(
-            new THREE.BoxGeometry(3, 0.3, 0.5), mat(PAL.finish, 0x004D40)
-          );
-          archTop.position.set(ex, 4.5, 0);
-          group.add(archTop);
-          for (let i = 0; i < 6; i++) {
-            const flag = new THREE.Mesh(
-              new THREE.BoxGeometry(0.4, 0.4, 0.1),
-              mat(i % 2 === 0 ? 0xFFFFFF : PAL.finish)
-            );
-            flag.position.set(ex - 1 + i * 0.4, 4.2, 0.3);
-            group.add(flag);
+          const asset = getAsset(GAME_ASSETS.finish.name, GAME_ASSETS.finish.color);
+          if (fitAsset(asset, 3, 9, 1, ex, 0, 0)) {
+            group.add(asset);
+          } else {
+            const archLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 10, 8), mat(PAL.finish, 0x004D40));
+            archLeft.position.set(ex - 1.2, 0, 0);
+            group.add(archLeft);
+            const archRight = archLeft.clone();
+            archRight.position.set(ex + 1.2, 0, 0);
+            group.add(archRight);
+            const archTop = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 0.5), mat(PAL.finish, 0x004D40));
+            archTop.position.set(ex, 4.5, 0);
+            group.add(archTop);
           }
           colliders.push({ type: 'finish', x: ex });
         }
-        // Checkpoint markers between levels (subtle)
         if (!isLast) {
-          const cpLeft = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.08, 0.08, 10, 6),
-            new THREE.MeshPhongMaterial({ color: PAL.finish, transparent: true, opacity: 0.4 })
-          );
-          cpLeft.position.set(ex - 0.8, 0, 0);
-          group.add(cpLeft);
-          const cpRight = cpLeft.clone();
-          cpRight.position.set(ex + 0.8, 0, 0);
-          group.add(cpRight);
+          const cpAsset = getAsset(GAME_ASSETS.finish.name, GAME_ASSETS.finish.color);
+          if (fitAsset(cpAsset, 2, 6, 0.5, ex, 0, 0)) {
+            cpAsset.traverse(c => { if (c.isMesh) { c.material.transparent = true; c.material.opacity = 0.5; } });
+            group.add(cpAsset);
+          } else {
+            const cpLeft = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.08, 0.08, 10, 6),
+              new THREE.MeshPhongMaterial({ color: PAL.finish, transparent: true, opacity: 0.4 })
+            );
+            cpLeft.position.set(ex - 0.8, 0, 0);
+            group.add(cpLeft);
+            const cpRight = cpLeft.clone();
+            cpRight.position.set(ex + 0.8, 0, 0);
+            group.add(cpRight);
+          }
+        }
+      }
+      else if (el.t === 'cannon') {
+        const ca = getAsset(GAME_ASSETS.cannon.name, GAME_ASSETS.cannon.color);
+        if (ca) {
+          ca.scale.setScalar(0.35);
+          ca.position.set(ex, Y_MIN, 0);
+          ca.traverse(child => {
+            if (child.name && child.name.includes('turret')) child.rotation.x = Math.PI / 4;
+          });
+          group.add(ca);
         }
       }
     });
@@ -430,10 +539,11 @@ export default function BounceBlob() {
 
   const startGame = useCallback(() => {
     const g = gameRef.current;
-    g.state = 'playing';
+    g.state = 'launching';
+    g.launchTimer = 0;
     g.currentLevel = 0;
-    g.playerX = 0;
-    g.playerY = 0;
+    g.playerX = LEVEL_OFFSETS[0]; // Will be positioned by launch animation
+    g.playerY = Y_MIN + 1.8;
     g.playerVelY = 0;
     g.coins = 0;
     g.stars = 0;
@@ -456,9 +566,10 @@ export default function BounceBlob() {
   // Restart from beginning of current level
   const restartFromLevel = useCallback((lvlIdx) => {
     const g = gameRef.current;
-    g.state = 'playing';
+    g.state = 'launching';
+    g.launchTimer = 0;
     g.playerX = LEVEL_OFFSETS[lvlIdx];
-    g.playerY = 0;
+    g.playerY = Y_MIN + 1.8;
     g.playerVelY = 0;
     g.deathTimer = 0;
     // Reset collectibles for this level (handled in game loop)
@@ -500,6 +611,12 @@ export default function BounceBlob() {
     let worldGroup = null;
     let colliders = [];
     let collectibles = [];
+
+    // Preload KayKit assets, then rebuild world with real models
+    preloadGameAssets().then(() => {
+      const g = gameRef.current;
+      g.needsWorldBuild = true;
+    });
 
     // ─── Input ───
     const g = gameRef.current;
@@ -604,6 +721,52 @@ export default function BounceBlob() {
         });
         setCoins(g.coins);
         setStars(g.stars);
+      }
+
+      // Launch animation — blob shoots out of cannon
+      if (g.state === 'launching') {
+        g.launchTimer += dt;
+        const lvlIdx = g.currentLevel;
+        const cannonX = LEVEL_OFFSETS[lvlIdx] - 1;
+        const cannonTipX = cannonX + 1;
+        const cannonTipY = Y_MIN + 1.8;
+        // Emit smoke from cannon barrel at start
+        if (g.launchTimer < 0.15) {
+          particleSys.emit(scene, cannonTipX, cannonTipY, 0x888888, 4);
+          particleSys.emit(scene, cannonTipX, cannonTipY, 0xFFAA44, 3);
+        }
+        const LAUNCH_DUR = 0.4;
+        const t = Math.min(g.launchTimer / LAUNCH_DUR, 1);
+        // Ease out cubic — fast start, smooth end
+        const ease = 1 - Math.pow(1 - t, 3);
+        const startX = cannonTipX;
+        const startY = cannonTipY;
+        const endX = LEVEL_OFFSETS[lvlIdx] + 2;
+        const endY = 0;
+        g.playerX = startX + (endX - startX) * ease;
+        g.playerY = startY + (endY - startY) * ease;
+
+        player.position.set(g.playerX, g.playerY, 0);
+        player.visible = true;
+        // Spin during launch
+        player.rotation.z = t * Math.PI * 2;
+        player.scale.set(0.5 + t * 0.5, 0.5 + t * 0.5, 0.5 + t * 0.5);
+
+        // Camera follows
+        camera.position.x += (g.playerX + 3 - camera.position.x) * 6 * dt;
+        camera.position.y += (g.playerY * 0.3 + 2.5 - camera.position.y) * 6 * dt;
+
+        if (t >= 1) {
+          g.state = 'playing';
+          g.playerX = endX;
+          g.playerY = endY;
+          player.scale.set(1, 1, 1);
+          player.rotation.z = 0;
+        }
+
+        particleSys.update(scene, dt);
+        renderer.render(scene, camera);
+        return;
       }
 
       if (g.state === 'playing') {

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Asset Viewer</title>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
+</script>
+<style>
+  * { margin: 0; padding: 0; }
+  body { background: #222; color: #fff; font-family: sans-serif; overflow: hidden; }
+  #viewport { width: 100vw; height: 100vh; }
+  #controls {
+    position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8);
+    padding: 15px; border-radius: 8px; font-size: 13px; z-index: 10;
+    display: flex; flex-direction: column; gap: 8px; min-width: 280px;
+  }
+  #controls label { display: flex; align-items: center; gap: 8px; }
+  #controls input[type=range] { flex: 1; }
+  #controls select, #controls button { padding: 5px 10px; border-radius: 4px; border: 1px solid #555; background: #333; color: #fff; cursor: pointer; }
+  #controls button:hover { background: #555; }
+  #info { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; font-size: 12px; font-family: monospace; }
+  .section { border-top: 1px solid #444; padding-top: 8px; margin-top: 4px; }
+  .section-title { font-size: 11px; color: #888; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div id="viewport"></div>
+
+<div id="controls">
+  <strong>Asset Viewer</strong>
+
+  <label>Asset: <select id="asset-select">
+    <option value="blue/cannon_base_blue">cannon_base (blue)</option>
+    <option value="red/barrier_4x1x4_red">barrier_4x1x4 (red)</option>
+    <option value="blue/diamond_blue">diamond (blue)</option>
+    <option value="yellow/star_yellow">star (yellow)</option>
+    <option value="neutral/signage_finish_wide">signage_finish_wide</option>
+    <option value="neutral/bomb">bomb</option>
+    <option value="blue/barrier_2x1x2_blue">barrier_2x1x2 (blue)</option>
+  </select></label>
+
+  <div class="section">
+    <div class="section-title">Scale</div>
+    <label>Uniform: <input type="range" id="scale" min="0.05" max="2" step="0.05" value="0.35"> <span id="scale-val">0.35</span></label>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Root Rotation</div>
+    <label>X: <input type="range" id="rot-x" min="-3.14" max="3.14" step="0.05" value="0"> <span id="rot-x-val">0</span></label>
+    <label>Y: <input type="range" id="rot-y" min="-3.14" max="3.14" step="0.05" value="0"> <span id="rot-y-val">0</span></label>
+    <label>Z: <input type="range" id="rot-z" min="-3.14" max="3.14" step="0.05" value="0"> <span id="rot-z-val">0</span></label>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Turret Rotation (cannon only)</div>
+    <label>X: <input type="range" id="turret-x" min="-3.14" max="3.14" step="0.05" value="0"> <span id="turret-x-val">0</span></label>
+    <label>Y: <input type="range" id="turret-y" min="-3.14" max="3.14" step="0.05" value="0"> <span id="turret-y-val">0</span></label>
+    <label>Z: <input type="range" id="turret-z" min="-3.14" max="3.14" step="0.05" value="0"> <span id="turret-z-val">0</span></label>
+  </div>
+
+  <div class="section">
+    <button id="btn-reset">Reset All</button>
+    <button id="btn-copy">Copy Settings</button>
+  </div>
+</div>
+
+<div id="info">Loading...</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x444466);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 100);
+camera.position.set(3, 2, 5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+viewport.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+dir.position.set(5, 10, 7);
+scene.add(dir);
+scene.add(new THREE.DirectionalLight(0xFFE0B2, 0.3).translateZ(-5));
+
+// Ground plane
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20),
+  new THREE.MeshPhongMaterial({ color: 0x81C784 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = 0;
+scene.add(ground);
+
+// Grid
+const grid = new THREE.GridHelper(20, 20, 0x666666, 0x444444);
+grid.position.y = 0.01;
+scene.add(grid);
+
+// Axes
+scene.add(new THREE.AxesHelper(3));
+
+// Y=0 line marker
+const Y_MIN = -4.5;
+
+const loader = new GLTFLoader();
+let currentModel = null;
+let turretNode = null;
+let nodeNames = [];
+let baseInfoHTML = '';
+
+// Pivot point markers - RED = turret pivot (where turret rotates around)
+const pivotMarkerMat = new THREE.MeshBasicMaterial({ color: 0xff0000, depthTest: false, transparent: true, opacity: 0.8 });
+const pivotMarker = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), pivotMarkerMat);
+pivotMarker.visible = false;
+pivotMarker.renderOrder = 999;
+scene.add(pivotMarker);
+
+// GREEN = barrel tip (end of cannon barrel)
+const barrelMarkerMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, depthTest: false, transparent: true, opacity: 0.8 });
+const barrelMarker = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), barrelMarkerMat);
+barrelMarker.visible = false;
+barrelMarker.renderOrder = 999;
+scene.add(barrelMarker);
+
+// YELLOW = barrel tip (computed from barrel bounding box max)
+const tipMarkerMat = new THREE.MeshBasicMaterial({ color: 0xffff00, depthTest: false, transparent: true, opacity: 0.8 });
+const tipMarker = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), tipMarkerMat);
+tipMarker.visible = false;
+tipMarker.renderOrder = 999;
+scene.add(tipMarker);
+
+function loadAsset(path) {
+  if (currentModel) { scene.remove(currentModel); currentModel = null; turretNode = null; }
+
+  const url = `assets/kaykit/${path}.gltf`;
+  loader.load(url, (gltf) => {
+    currentModel = gltf.scene;
+    scene.add(currentModel);
+
+    // Collect node names
+    nodeNames = [];
+    currentModel.traverse(child => {
+      if (child.name) nodeNames.push(child.name);
+      if (child.name && child.name.includes('turret')) turretNode = child;
+    });
+
+    // Measure
+    const box = new THREE.Box3().setFromObject(currentModel);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+
+    baseInfoHTML =
+      `<b>${path}</b><br>` +
+      `Size: ${size.x.toFixed(2)} x ${size.y.toFixed(2)} x ${size.z.toFixed(2)}<br>` +
+      `Center: ${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)}<br>` +
+      `Min: ${box.min.x.toFixed(2)}, ${box.min.y.toFixed(2)}, ${box.min.z.toFixed(2)}<br>` +
+      `Max: ${box.max.x.toFixed(2)}, ${box.max.y.toFixed(2)}, ${box.max.z.toFixed(2)}<br>` +
+      `Nodes: ${nodeNames.join(', ')}<br>` +
+      `Turret found: ${turretNode ? 'YES' : 'no'}`;
+    document.getElementById('info').innerHTML = baseInfoHTML;
+
+    applySettings();
+  }, undefined, (err) => {
+    document.getElementById('info').textContent = `Error loading ${path}: ${err.message}`;
+  });
+}
+
+function applySettings() {
+  if (!currentModel) return;
+
+  const s = parseFloat(document.getElementById('scale').value);
+  currentModel.scale.setScalar(s);
+  currentModel.rotation.x = parseFloat(document.getElementById('rot-x').value);
+  currentModel.rotation.y = parseFloat(document.getElementById('rot-y').value);
+  currentModel.rotation.z = parseFloat(document.getElementById('rot-z').value);
+
+  // Position on ground (y=0)
+  currentModel.position.set(0, 0, 0);
+
+  if (turretNode) {
+    turretNode.rotation.x = parseFloat(document.getElementById('turret-x').value);
+    turretNode.rotation.y = parseFloat(document.getElementById('turret-y').value);
+    turretNode.rotation.z = parseFloat(document.getElementById('turret-z').value);
+  }
+
+  // Update value displays
+  document.getElementById('scale-val').textContent = s.toFixed(2);
+  ['rot-x', 'rot-y', 'rot-z', 'turret-x', 'turret-y', 'turret-z'].forEach(id => {
+    const el = document.getElementById(id);
+    document.getElementById(id + '-val').textContent = parseFloat(el.value).toFixed(2);
+  });
+
+  // Show pivot point markers
+  currentModel.updateMatrixWorld(true); // ensure world matrices are up to date
+  if (turretNode) {
+    pivotMarker.visible = true;
+    // Turret pivot = turret node's world position (where rotation happens)
+    const turretWorldPos = new THREE.Vector3();
+    turretNode.getWorldPosition(turretWorldPos);
+    pivotMarker.position.copy(turretWorldPos);
+
+    // Find barrel node
+    let barrelNode = null;
+    turretNode.traverse(child => {
+      if (child.name && child.name.includes('barrel')) barrelNode = child;
+    });
+
+    let extraInfo = '';
+    if (barrelNode) {
+      barrelMarker.visible = true;
+      const barrelWorldPos = new THREE.Vector3();
+      barrelNode.getWorldPosition(barrelWorldPos);
+      barrelMarker.position.copy(barrelWorldPos);
+
+      // Find barrel tip (max Y in barrel's local space, transformed to world)
+      const barrelBox = new THREE.Box3().setFromObject(barrelNode);
+      tipMarker.visible = true;
+      // Barrel tip = the farthest point from turret pivot along barrel's up axis
+      tipMarker.position.set(
+        (barrelBox.min.x + barrelBox.max.x) / 2,
+        barrelBox.max.y,
+        (barrelBox.min.z + barrelBox.max.z) / 2
+      );
+
+      extraInfo =
+        `<br><span style="color:#f00">● RED = Turret pivot: ${turretWorldPos.x.toFixed(2)}, ${turretWorldPos.y.toFixed(2)}, ${turretWorldPos.z.toFixed(2)}</span>` +
+        `<br><span style="color:#0f0">● GREEN = Barrel origin: ${barrelWorldPos.x.toFixed(2)}, ${barrelWorldPos.y.toFixed(2)}, ${barrelWorldPos.z.toFixed(2)}</span>` +
+        `<br><span style="color:#ff0">● YELLOW = Barrel tip: ${tipMarker.position.x.toFixed(2)}, ${tipMarker.position.y.toFixed(2)}, ${tipMarker.position.z.toFixed(2)}</span>`;
+    }
+
+    // Also measure base mesh bounding box separately
+    let baseNode = null;
+    currentModel.traverse(child => {
+      if (child.name === 'cannon_base_blue' && child.isMesh) baseNode = child;
+    });
+    if (baseNode) {
+      const baseBox = new THREE.Box3().setFromObject(baseNode);
+      extraInfo += `<br>Base top (world Y): ${baseBox.max.y.toFixed(3)}`;
+      extraInfo += `<br>Turret pivot Y: ${turretWorldPos.y.toFixed(3)}`;
+      extraInfo += `<br>Pivot is ${((turretWorldPos.y - baseBox.max.y) * 100).toFixed(1)}% above base top`;
+    }
+
+    document.getElementById('info').innerHTML = baseInfoHTML + extraInfo;
+  } else {
+    pivotMarker.visible = false;
+    barrelMarker.visible = false;
+    tipMarker.visible = false;
+  }
+}
+
+// Event listeners for all sliders
+document.querySelectorAll('input[type=range]').forEach(inp => {
+  inp.addEventListener('input', applySettings);
+});
+
+document.getElementById('asset-select').addEventListener('change', (e) => {
+  loadAsset(e.target.value);
+  // Reset sliders
+  document.getElementById('scale').value = 0.35;
+  ['rot-x', 'rot-y', 'rot-z', 'turret-x', 'turret-y', 'turret-z'].forEach(id => {
+    document.getElementById(id).value = 0;
+  });
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  document.getElementById('scale').value = 0.35;
+  ['rot-x', 'rot-y', 'rot-z', 'turret-x', 'turret-y', 'turret-z'].forEach(id => {
+    document.getElementById(id).value = 0;
+  });
+  applySettings();
+});
+
+document.getElementById('btn-copy').addEventListener('click', () => {
+  const s = document.getElementById('scale').value;
+  const rx = document.getElementById('rot-x').value;
+  const ry = document.getElementById('rot-y').value;
+  const rz = document.getElementById('rot-z').value;
+  const tx = document.getElementById('turret-x').value;
+  const ty = document.getElementById('turret-y').value;
+  const tz = document.getElementById('turret-z').value;
+  const text = `scale: ${s}, rotation: (${rx}, ${ry}, ${rz}), turret: (${tx}, ${ty}, ${tz})`;
+  navigator.clipboard.writeText(text).then(() => alert('Copied: ' + text));
+});
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Animate
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// Load initial
+loadAsset('blue/cannon_base_blue');
+animate();
+</script>
+</body>
+</html>

@@ -117,6 +117,7 @@
 
   <div class="section">
     <div class="section-title">Level</div>
+    <button class="tool-btn" data-tool="cannon"><span class="tool-icon" style="background:#42A5F5;">💥</span> Cannon<span class="tool-key">7</span></button>
     <button class="tool-btn" data-tool="finish"><span class="tool-icon" style="background:#69F0AE;">🏁</span> Finish<span class="tool-key">6</span></button>
   </div>
 
@@ -172,7 +173,7 @@ const Y_MIN = -4.5, Y_MAX = 4.5;
 const PLAYER_RADIUS = 0.35;
 const COLORS = {
   wall: 0xFFAB91, spinner: 0xF06292, mover: 0x7986CB,
-  coin: 0xFFD700, star: 0xFFAB00, finish: 0x69F0AE,
+  coin: 0xFFD700, star: 0xFFAB00, finish: 0x69F0AE, cannon: 0x42A5F5,
   ground: [0x81C784, 0xFFCC80, 0xB39DDB],
   selected: 0xFF6B8A,
 };
@@ -224,9 +225,22 @@ controls.target.set(30, 0, 0);
 const DEFAULT_CAM_Z = 14;
 
 // Custom zoom — move camera Z closer/further
+// Hold Shift + scroll on selected wall to adjust gap size
 viewport.addEventListener('wheel', (e) => {
   if (playing) return;
   e.preventDefault();
+
+  // Shift+scroll: adjust gapH on selected wall
+  if (e.shiftKey && selectedIdx >= 0 && els()[selectedIdx]?.t === 'wall') {
+    saveUndo();
+    const el = els()[selectedIdx];
+    const delta = e.deltaY > 0 ? -0.25 : 0.25;
+    el.gapH = Math.max(0.5, Math.min(9, el.gapH + delta));
+    rebuildMeshes();
+    updateProps();
+    return;
+  }
+
   const factor = e.deltaY > 0 ? 1.1 : 0.9;
   camera.position.z = Math.max(4, Math.min(60, camera.position.z * factor));
 }, { passive: false });
@@ -278,6 +292,57 @@ function createBounds() {
 createBounds();
 
 // ═══════════════════════════════════
+//  GLTF ASSET LOADER
+// ═══════════════════════════════════
+const gltfLoader = new GLTFLoader();
+const assetCache = {};
+
+function loadAsset(name, color = 'neutral') {
+  const key = `${color}/${name}`;
+  if (assetCache[key]) return Promise.resolve(assetCache[key]);
+  const suffix = color === 'neutral' ? '' : `_${color}`;
+  const path = `assets/kaykit/${color}/${name}${suffix}.gltf`;
+  return new Promise((resolve) => {
+    gltfLoader.load(path, (gltf) => {
+      assetCache[key] = gltf.scene;
+      resolve(gltf.scene);
+    }, undefined, () => { resolve(null); });
+  });
+}
+
+function cloneAsset(cached) {
+  const clone = cached.clone();
+  clone.traverse(c => {
+    if (c.isMesh) {
+      c.material = c.material.clone();
+      c.castShadow = true;
+      c.receiveShadow = true;
+    }
+  });
+  return clone;
+}
+
+// Preload commonly used assets
+const ASSET_MAP = {
+  wall: { name: 'barrier_4x1x4', color: 'red' },
+  spinner: { name: 'bomb', color: 'neutral' },
+  mover: { name: 'barrier_2x1x2', color: 'blue' },
+  coin: { name: 'diamond', color: 'blue' },
+  star: { name: 'star', color: 'yellow' },
+  finish: { name: 'signage_finish_wide', color: 'neutral' },
+  cannon: { name: 'cannon_base', color: 'blue' },
+};
+
+let assetsReady = false;
+async function preloadAssets() {
+  const promises = Object.values(ASSET_MAP).map(a => loadAsset(a.name, a.color));
+  await Promise.all(promises);
+  assetsReady = true;
+  rebuildMeshes();
+}
+preloadAssets();
+
+// ═══════════════════════════════════
 //  3D ELEMENT BUILDERS
 // ═══════════════════════════════════
 const meshGroup = new THREE.Group();
@@ -307,6 +372,27 @@ function rebuildMeshes() {
   updateSelectionBox();
 }
 
+function getAssetClone(type) {
+  const info = ASSET_MAP[type];
+  if (!info) return null;
+  const cached = assetCache[`${info.color}/${info.name}`];
+  if (!cached) return null;
+  return cloneAsset(cached);
+}
+
+function fitAsset(asset, targetW, targetH, targetD, cx, cy, cz) {
+  if (!asset) return null;
+  const box = new THREE.Box3().setFromObject(asset);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const sx = targetW / Math.max(size.x, 0.01);
+  const sy = targetH / Math.max(size.y, 0.01);
+  const sz = targetD / Math.max(size.z, 0.01);
+  asset.scale.set(sx, sy, sz);
+  asset.position.set(cx - center.x * sx, cy - center.y * sy, cz - center.z * sz);
+  return asset;
+}
+
 function buildElementMesh(el, selected) {
   const col = selected ? COLORS.selected : COLORS[el.t] || 0xcccccc;
   const group = new THREE.Group();
@@ -315,18 +401,21 @@ function buildElementMesh(el, selected) {
     const halfGap = el.gapH / 2;
     const topH = Y_MAX - (el.gapY + halfGap);
     const botH = (el.gapY - halfGap) - Y_MIN;
-    if (topH > 0) {
-      const w = new THREE.Mesh(new THREE.BoxGeometry(0.6, topH, 3), mat(col));
-      w.position.set(el.x, Y_MAX - topH / 2, 0);
-      w.castShadow = true;
-      group.add(w);
-    }
-    if (botH > 0) {
-      const w = new THREE.Mesh(new THREE.BoxGeometry(0.6, botH, 3), mat(col));
-      w.position.set(el.x, Y_MIN + botH / 2, 0);
-      w.castShadow = true;
-      group.add(w);
-    }
+    const wallW = 0.6, wallD = 3;
+
+    const addWallSection = (yC, h) => {
+      const asset = getAssetClone('wall');
+      if (fitAsset(asset, wallW, h, wallD, el.x, yC, 0)) {
+        if (selected) tintModel(asset, COLORS.selected);
+        group.add(asset);
+      } else {
+        const w = new THREE.Mesh(new THREE.BoxGeometry(wallW, h, wallD), mat(col));
+        w.position.set(el.x, yC, 0); w.castShadow = true; group.add(w);
+      }
+    };
+
+    if (topH > 0) addWallSection(Y_MAX - topH / 2, topH);
+    if (botH > 0) addWallSection(Y_MIN + botH / 2, botH);
   }
   else if (el.t === 'spinner') {
     const pivot = new THREE.Group();
@@ -334,20 +423,36 @@ function buildElementMesh(el, selected) {
     const barGeo = new THREE.CylinderGeometry(0.12, 0.12, el.len * 2, 8);
     barGeo.rotateZ(Math.PI / 2);
     pivot.add(new THREE.Mesh(barGeo, mat(col)));
-    pivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(0xffffff)));
+
+    const hub = getAssetClone('spinner');
+    if (fitAsset(hub, 0.5, 0.5, 0.5, 0, 0, 0)) {
+      if (selected) tintModel(hub, COLORS.selected);
+      pivot.add(hub);
+    } else {
+      pivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(0xffffff)));
+    }
+
     [-1, 1].forEach(s => {
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), mat(col));
-      tip.position.set(s * el.len, 0, 0);
-      pivot.add(tip);
+      const tip = getAssetClone('spinner');
+      if (fitAsset(tip, 0.4, 0.4, 0.4, s * el.len, 0, 0)) {
+        if (selected) tintModel(tip, COLORS.selected);
+        pivot.add(tip);
+      } else {
+        const t = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), mat(col));
+        t.position.set(s * el.len, 0, 0); pivot.add(t);
+      }
     });
     group.add(pivot);
   }
   else if (el.t === 'mover') {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(el.w, el.h, 3), mat(col));
-    m.position.set(el.x, el.y, 0);
-    m.castShadow = true;
-    group.add(m);
-    // Range indicator
+    const asset = getAssetClone('mover');
+    if (fitAsset(asset, el.w, el.h, 3, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(el.w, el.h, 3), mat(col));
+      m.position.set(el.x, el.y, 0); m.castShadow = true; group.add(m);
+    }
     const arrow = new THREE.LineSegments(
       new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(el.x, el.y - el.range, 0.5),
@@ -358,34 +463,70 @@ function buildElementMesh(el, selected) {
     group.add(arrow);
   }
   else if (el.t === 'coin') {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(col, 0x332200));
-    m.position.set(el.x, el.y, 0);
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.26, 0.03, 8, 16),
-      new THREE.MeshPhongMaterial({ color: 0xFFF176, emissive: 0x554400, transparent: true, opacity: 0.5 })
-    );
-    ring.position.set(el.x, el.y, 0);
-    group.add(m);
-    group.add(ring);
+    const asset = getAssetClone('coin');
+    if (fitAsset(asset, 0.5, 0.5, 0.5, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(col, 0x332200));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
   }
   else if (el.t === 'star') {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 6), mat(col, 0x442200));
-    m.position.set(el.x, el.y, 0);
-    group.add(m);
+    const asset = getAssetClone('star');
+    if (fitAsset(asset, 0.7, 0.7, 0.7, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 6), mat(col, 0x442200));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
   }
   else if (el.t === 'finish') {
-    const left = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 10, 8), mat(col, 0x004D40));
-    left.position.set(el.x - 1.2, 0, 0);
-    group.add(left);
-    const right = left.clone();
-    right.position.set(el.x + 1.2, 0, 0);
-    group.add(right);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 0.5), mat(col, 0x004D40));
-    top.position.set(el.x, 4.5, 0);
-    group.add(top);
+    const asset = getAssetClone('finish');
+    if (fitAsset(asset, 3, 9, 1, el.x, 0, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const left = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 10, 8), mat(col, 0x004D40));
+      left.position.set(el.x - 1.2, 0, 0); group.add(left);
+      const right = left.clone(); right.position.set(el.x + 1.2, 0, 0); group.add(right);
+      const top = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 0.5), mat(col, 0x004D40));
+      top.position.set(el.x, 4.5, 0); group.add(top);
+    }
+  }
+  else if (el.t === 'cannon') {
+    const asset = getAssetClone('cannon');
+    if (asset) {
+      asset.scale.setScalar(0.35);
+      asset.position.set(el.x, Y_MIN, 0);
+      asset.traverse(child => {
+        if (child.name && child.name.includes('turret')) child.rotation.x = Math.PI / 4;
+      });
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const base = new THREE.Mesh(new THREE.BoxGeometry(1, 0.8, 1), mat(col));
+      base.position.set(el.x, Y_MIN + 0.4, 0);
+      group.add(base);
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 2, 12), mat(col));
+      barrel.rotation.z = -Math.PI / 4;
+      barrel.position.set(el.x, Y_MIN + 1.2, 0);
+      group.add(barrel);
+    }
   }
 
   return group;
+}
+
+function tintModel(model, color) {
+  const c = new THREE.Color(color);
+  model.traverse(child => {
+    if (child.isMesh && child.material) {
+      child.material.emissive = c;
+      child.material.emissiveIntensity = 0.3;
+    }
+  });
 }
 
 function updateSelectionBox() {
@@ -438,6 +579,7 @@ function defaultEl(type, x, y) {
     case 'mover': return { t: 'mover', x, y, range: 2.5, spd: 1.5, w: 1.2, h: 5 };
     case 'coin': return { t: 'coin', x, y };
     case 'star': return { t: 'star', x, y };
+    case 'cannon': return { t: 'cannon', x, y: 0 };
     case 'finish': return { t: 'finish', x };
   }
 }
@@ -476,6 +618,7 @@ function updateProps() {
   else if (el.t === 'spinner') { f('Y', 'y'); f('Length', 'len', 0.5, 0.5, 5); f('Speed', 'spd', 0.5, -5, 5); }
   else if (el.t === 'mover') { f('Y', 'y'); f('W', 'w', 0.2); f('H', 'h', 0.5); f('Range', 'range', 0.5); f('Speed', 'spd', 0.5); }
   else if (el.t === 'coin' || el.t === 'star') { f('Y', 'y'); }
+  else if (el.t === 'cannon') { f('Y', 'y'); }
 
   h += `<button class="tb red" style="width:100%; margin-top:8px;" onclick="window._deleteSelected()">Delete</button>`;
   c.innerHTML = h;
@@ -566,6 +709,7 @@ window.addEventListener('keydown', (e) => {
   if (key === 'Digit4') setTool('coin');
   if (key === 'Digit5') setTool('star');
   if (key === 'Digit6') setTool('finish');
+  if (key === 'Digit7') setTool('cannon');
 });
 
 // Play mode input
