@@ -53,10 +53,17 @@
   </div>
 
   <div class="section">
-    <div class="section-title">Turret Rotation (cannon only)</div>
+    <div class="section-title">Turret Rotation — röd pivot</div>
     <label>X: <input type="range" id="turret-x" min="-3.14" max="3.14" step="0.05" value="0"> <span id="turret-x-val">0</span></label>
     <label>Y: <input type="range" id="turret-y" min="-3.14" max="3.14" step="0.05" value="0"> <span id="turret-y-val">0</span></label>
     <label>Z: <input type="range" id="turret-z" min="-3.14" max="3.14" step="0.05" value="0"> <span id="turret-z-val">0</span></label>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Barrel Rotation — grön pivot</div>
+    <label>X: <input type="range" id="barrel-x" min="-3.14" max="3.14" step="0.05" value="0"> <span id="barrel-x-val">0</span></label>
+    <label>Y: <input type="range" id="barrel-y" min="-3.14" max="3.14" step="0.05" value="0"> <span id="barrel-y-val">0</span></label>
+    <label>Z: <input type="range" id="barrel-z" min="-3.14" max="3.14" step="0.05" value="0"> <span id="barrel-z-val">0</span></label>
   </div>
 
   <div class="section">
@@ -116,6 +123,7 @@ const Y_MIN = -4.5;
 const loader = new GLTFLoader();
 let currentModel = null;
 let turretNode = null;
+let barrelNodeRef = null;
 let nodeNames = [];
 let baseInfoHTML = '';
 
@@ -141,7 +149,7 @@ tipMarker.renderOrder = 999;
 scene.add(tipMarker);
 
 function loadAsset(path) {
-  if (currentModel) { scene.remove(currentModel); currentModel = null; turretNode = null; }
+  if (currentModel) { scene.remove(currentModel); currentModel = null; turretNode = null; barrelNodeRef = null; }
 
   const url = `assets/kaykit/${path}.gltf`;
   loader.load(url, (gltf) => {
@@ -153,6 +161,7 @@ function loadAsset(path) {
     currentModel.traverse(child => {
       if (child.name) nodeNames.push(child.name);
       if (child.name && child.name.includes('turret')) turretNode = child;
+      if (child.name && child.name.includes('barrel')) barrelNodeRef = child;
     });
 
     // Measure
@@ -194,9 +203,15 @@ function applySettings() {
     turretNode.rotation.z = parseFloat(document.getElementById('turret-z').value);
   }
 
+  if (barrelNodeRef) {
+    barrelNodeRef.rotation.x = parseFloat(document.getElementById('barrel-x').value);
+    barrelNodeRef.rotation.y = parseFloat(document.getElementById('barrel-y').value);
+    barrelNodeRef.rotation.z = parseFloat(document.getElementById('barrel-z').value);
+  }
+
   // Update value displays
   document.getElementById('scale-val').textContent = s.toFixed(2);
-  ['rot-x', 'rot-y', 'rot-z', 'turret-x', 'turret-y', 'turret-z'].forEach(id => {
+  ['rot-x', 'rot-y', 'rot-z', 'turret-x', 'turret-y', 'turret-z', 'barrel-x', 'barrel-y', 'barrel-z'].forEach(id => {
     const el = document.getElementById(id);
     document.getElementById(id + '-val').textContent = parseFloat(el.value).toFixed(2);
   });
@@ -268,14 +283,14 @@ document.getElementById('asset-select').addEventListener('change', (e) => {
   loadAsset(e.target.value);
   // Reset sliders
   document.getElementById('scale').value = 0.35;
-  ['rot-x', 'rot-y', 'rot-z', 'turret-x', 'turret-y', 'turret-z'].forEach(id => {
+  ['rot-x', 'rot-y', 'rot-z', 'turret-x', 'turret-y', 'turret-z', 'barrel-x', 'barrel-y', 'barrel-z'].forEach(id => {
     document.getElementById(id).value = 0;
   });
 });
 
 document.getElementById('btn-reset').addEventListener('click', () => {
   document.getElementById('scale').value = 0.35;
-  ['rot-x', 'rot-y', 'rot-z', 'turret-x', 'turret-y', 'turret-z'].forEach(id => {
+  ['rot-x', 'rot-y', 'rot-z', 'turret-x', 'turret-y', 'turret-z', 'barrel-x', 'barrel-y', 'barrel-z'].forEach(id => {
     document.getElementById(id).value = 0;
   });
   applySettings();
@@ -289,7 +304,10 @@ document.getElementById('btn-copy').addEventListener('click', () => {
   const tx = document.getElementById('turret-x').value;
   const ty = document.getElementById('turret-y').value;
   const tz = document.getElementById('turret-z').value;
-  const text = `scale: ${s}, rotation: (${rx}, ${ry}, ${rz}), turret: (${tx}, ${ty}, ${tz})`;
+  const bx = document.getElementById('barrel-x').value;
+  const by = document.getElementById('barrel-y').value;
+  const bz = document.getElementById('barrel-z').value;
+  const text = `scale: ${s}, rotation: (${rx}, ${ry}, ${rz}), turret: (${tx}, ${ty}, ${tz}), barrel: (${bx}, ${by}, ${bz})`;
   navigator.clipboard.writeText(text).then(() => alert('Copied: ' + text));
 });
 

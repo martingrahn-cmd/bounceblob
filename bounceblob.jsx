@@ -50,13 +50,16 @@ const LEVELS = [
       { t: 'coin', x: 48, y: 2 }, { t: 'coin', x: 49, y: 1 }, { t: 'coin', x: 50, y: 0 },
       { t: 'star', x: 47.5, y: 3.2 },
       { t: 'spinner', x: 55, y: 0, len: 3, spd: 2 },
+      { t: 'coin', x: 60, y: 0 }, { t: 'coin', x: 61, y: 0 }, { t: 'coin', x: 62, y: 0 },
       { t: 'star', x: 60, y: -2.5 },
-      { t: 'finish', x: 65 },
+      { t: 'wall', x: 68, gapY: 0.5, gapH: 3 },
+      { t: 'coin', x: 72, y: 0 }, { t: 'coin', x: 73, y: 0 },
+      { t: 'finish', x: 80 },
     ]
   },
   {
     name: "Candy Canyon",
-    speed: 5.5,
+    speed: 5.2,
     bgIdx: 1,
     elements: [
       { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 }, { t: 'coin', x: 7, y: 0 },
@@ -74,13 +77,16 @@ const LEVELS = [
       { t: 'coin', x: 52, y: 2 }, { t: 'coin', x: 53, y: 2 }, { t: 'coin', x: 54, y: 2 },
       { t: 'wall', x: 58, gapY: 0, gapH: 2.2 },
       { t: 'spinner', x: 63, y: 0, len: 3.5, spd: 2 },
-      { t: 'star', x: 66, y: -3 },
-      { t: 'finish', x: 72 },
+      { t: 'coin', x: 67, y: -1 }, { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 1 },
+      { t: 'wall', x: 74, gapY: -0.5, gapH: 2.5 },
+      { t: 'star', x: 72, y: -3 },
+      { t: 'coin', x: 78, y: 0 }, { t: 'coin', x: 79, y: 0 },
+      { t: 'finish', x: 85 },
     ]
   },
   {
     name: "Cloud Kingdom",
-    speed: 6,
+    speed: 5.5,
     bgIdx: 2,
     elements: [
       { t: 'coin', x: 5, y: 1 }, { t: 'coin', x: 6, y: 1.5 },
@@ -103,7 +109,230 @@ const LEVELS = [
       { t: 'star', x: 61, y: -3.5 },
       { t: 'coin', x: 67, y: 0 }, { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 0 },
       { t: 'coin', x: 70, y: 0 }, { t: 'coin', x: 71, y: 0 },
-      { t: 'finish', x: 78 },
+      { t: 'wall', x: 76, gapY: 0, gapH: 2.5 },
+      { t: 'coin', x: 80, y: 1 }, { t: 'coin', x: 81, y: 0 },
+      { t: 'finish', x: 88 },
+    ]
+  },
+  {
+    name: "Sawmill Valley",
+    speed: 5.5,
+    bgIdx: 0,
+    elements: [
+      { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0.5 }, { t: 'coin', x: 7, y: 1 },
+      { t: 'sawblade', x: 14, y: 0, range: 0, spd: 2 },
+      { t: 'coin', x: 18, y: 2 }, { t: 'coin', x: 19, y: 2 },
+      { t: 'wall', x: 22, gapY: 1, gapH: 2.5 },
+      { t: 'sawblade', x: 28, y: 2, range: 3, spd: 1.5 },
+      { t: 'star', x: 26, y: -2.5 },
+      { t: 'coin', x: 32, y: -1 }, { t: 'coin', x: 33, y: 0 }, { t: 'coin', x: 34, y: 1 },
+      { t: 'spinner', x: 38, y: 0, len: 2.5, spd: 2 },
+      { t: 'sawblade', x: 44, y: -1, range: 2, spd: 2 },
+      { t: 'wall', x: 48, gapY: 1.5, gapH: 2.5 },
+      { t: 'coin', x: 52, y: 1.5 }, { t: 'coin', x: 53, y: 1.5 },
+      { t: 'star', x: 50, y: 3.5 },
+      { t: 'sawblade', x: 58, y: 0, range: 3.5, spd: 1.8 },
+      { t: 'wall', x: 62, gapY: -1, gapH: 2.5 },
+      { t: 'coin', x: 66, y: -1 }, { t: 'coin', x: 67, y: 0 }, { t: 'coin', x: 68, y: 1 },
+      { t: 'mover', x: 72, y: 0, range: 2.5, spd: 2, w: 1, h: 5 },
+      { t: 'star', x: 76, y: -3 },
+      { t: 'coin', x: 80, y: 0 }, { t: 'coin', x: 81, y: 0 },
+      { t: 'finish', x: 88 },
+    ]
+  },
+  {
+    name: "Spike Cavern",
+    speed: 5.8,
+    bgIdx: 1,
+    elements: [
+      { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+      { t: 'spikeball', x: 12, y: 2, range: 2.5, spd: 1.5 },
+      { t: 'wall', x: 16, gapY: -1, gapH: 2.5 },
+      { t: 'coin', x: 20, y: -1 }, { t: 'coin', x: 21, y: 0 }, { t: 'coin', x: 22, y: 1 },
+      { t: 'sawblade', x: 26, y: 0, range: 2, spd: 2 },
+      { t: 'spikeball', x: 30, y: -2, range: 3, spd: 1.8 },
+      { t: 'star', x: 28, y: 3.5 },
+      { t: 'wall', x: 34, gapY: 1, gapH: 2.2 },
+      { t: 'wall', x: 38, gapY: -1.5, gapH: 2.2 },
+      { t: 'coin', x: 36, y: 1 }, { t: 'coin', x: 36, y: 0 },
+      { t: 'spinner', x: 44, y: 0, len: 3, spd: -2.5 },
+      { t: 'spikeball', x: 50, y: 1, range: 2, spd: 2 },
+      { t: 'spikeball', x: 54, y: -1, range: 2, spd: -2 },
+      { t: 'star', x: 52, y: -3.5 },
+      { t: 'coin', x: 58, y: 0 }, { t: 'coin', x: 59, y: 0 }, { t: 'coin', x: 60, y: 0 },
+      { t: 'sawblade', x: 64, y: 2, range: 3, spd: 2.2 },
+      { t: 'wall', x: 68, gapY: 0, gapH: 2 },
+      { t: 'mover', x: 74, y: 0, range: 3, spd: 2, w: 0.8, h: 6 },
+      { t: 'star', x: 78, y: 3 },
+      { t: 'coin', x: 82, y: 0 }, { t: 'coin', x: 83, y: 0 },
+      { t: 'finish', x: 90 },
+    ]
+  },
+  {
+    name: "Twisted Tunnels",
+    speed: 6,
+    bgIdx: 2,
+    elements: [
+      { t: 'coin', x: 5, y: 1 }, { t: 'coin', x: 6, y: 0 }, { t: 'coin', x: 7, y: -1 },
+      { t: 'wall', x: 12, gapY: 2, gapH: 2 },
+      { t: 'wall', x: 15, gapY: -2, gapH: 2 },
+      { t: 'wall', x: 18, gapY: 1, gapH: 2 },
+      { t: 'star', x: 15, y: 2 },
+      { t: 'sawblade', x: 24, y: 0, range: 3, spd: 2 },
+      { t: 'spinner', x: 30, y: 1, len: 2, spd: 3 },
+      { t: 'spinner', x: 34, y: -1, len: 2, spd: -3 },
+      { t: 'coin', x: 32, y: 3 }, { t: 'coin', x: 33, y: 3 },
+      { t: 'spikeball', x: 40, y: 0, range: 3.5, spd: 1.5 },
+      { t: 'mover', x: 44, y: 0, range: 3, spd: 2.5, w: 1, h: 5 },
+      { t: 'mover', x: 48, y: 0, range: 3, spd: -2.5, w: 1, h: 5 },
+      { t: 'star', x: 46, y: 0 },
+      { t: 'coin', x: 52, y: -1 }, { t: 'coin', x: 53, y: 0 }, { t: 'coin', x: 54, y: 1 },
+      { t: 'wall', x: 58, gapY: 0, gapH: 2 },
+      { t: 'sawblade', x: 62, y: 2, range: 2, spd: 2.5 },
+      { t: 'sawblade', x: 66, y: -2, range: 2, spd: -2.5 },
+      { t: 'spikeball', x: 72, y: 0, range: 2.5, spd: 2 },
+      { t: 'wall', x: 76, gapY: 1, gapH: 2 },
+      { t: 'wall', x: 80, gapY: -1.5, gapH: 2 },
+      { t: 'star', x: 78, y: -3 },
+      { t: 'coin', x: 84, y: 0 }, { t: 'coin', x: 85, y: 0 },
+      { t: 'spinner', x: 90, y: 0, len: 3, spd: 2.5 },
+      { t: 'coin', x: 94, y: 0 }, { t: 'coin', x: 95, y: 0 },
+      { t: 'finish', x: 100 },
+    ]
+  },
+  {
+    name: "Hammer Heights",
+    speed: 6.2,
+    bgIdx: 0,
+    elements: [
+      { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0.5 },
+      { t: 'hammer', x: 12, y: 2, len: 2.5, spd: 2 },
+      { t: 'wall', x: 18, gapY: 0, gapH: 2.5 },
+      { t: 'coin', x: 22, y: 1 }, { t: 'coin', x: 23, y: 1 },
+      { t: 'sawblade', x: 28, y: -1, range: 2.5, spd: 2 },
+      { t: 'hammer', x: 34, y: -2, len: 2, spd: 2.5 },
+      { t: 'star', x: 31, y: 3.5 },
+      { t: 'spinner', x: 40, y: 0, len: 3, spd: -2.5 },
+      { t: 'coin', x: 44, y: -1 }, { t: 'coin', x: 45, y: 0 }, { t: 'coin', x: 46, y: 1 },
+      { t: 'wall', x: 50, gapY: 1.5, gapH: 2 },
+      { t: 'hammer', x: 54, y: 0, len: 3, spd: 1.8 },
+      { t: 'spikeball', x: 58, y: 2, range: 3, spd: 2 },
+      { t: 'star', x: 56, y: -3.5 },
+      { t: 'wall', x: 64, gapY: -1, gapH: 2 },
+      { t: 'sawblade', x: 68, y: 0, range: 3, spd: 2.5 },
+      { t: 'coin', x: 72, y: 0 }, { t: 'coin', x: 73, y: 0 }, { t: 'coin', x: 74, y: 0 },
+      { t: 'mover', x: 78, y: 0, range: 3, spd: 2, w: 0.8, h: 6 },
+      { t: 'hammer', x: 84, y: 2, len: 2.5, spd: 2.5 },
+      { t: 'star', x: 88, y: 0 },
+      { t: 'coin', x: 92, y: 1 }, { t: 'coin', x: 93, y: 0 },
+      { t: 'finish', x: 100 },
+    ]
+  },
+  {
+    name: "Inferno Forge",
+    speed: 6.5,
+    bgIdx: 1,
+    elements: [
+      { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+      { t: 'sawblade', x: 10, y: 1, range: 2, spd: 2.5 },
+      { t: 'sawblade', x: 14, y: -1, range: 2, spd: -2.5 },
+      { t: 'wall', x: 18, gapY: 0, gapH: 2 },
+      { t: 'star', x: 16, y: 3.5 },
+      { t: 'hammer', x: 24, y: 2, len: 2.5, spd: 2.5 },
+      { t: 'hammer', x: 28, y: -2, len: 2.5, spd: -2.5 },
+      { t: 'coin', x: 26, y: 0 }, { t: 'coin', x: 27, y: 0 },
+      { t: 'spinner', x: 34, y: 0, len: 3, spd: 3 },
+      { t: 'spikeball', x: 38, y: 2, range: 3, spd: 2 },
+      { t: 'spikeball', x: 42, y: -2, range: 3, spd: -2 },
+      { t: 'coin', x: 40, y: 0 },
+      { t: 'wall', x: 46, gapY: 1, gapH: 1.8 },
+      { t: 'wall', x: 50, gapY: -1, gapH: 1.8 },
+      { t: 'star', x: 48, y: 0 },
+      { t: 'sawblade', x: 56, y: 0, range: 3.5, spd: 2 },
+      { t: 'mover', x: 60, y: 0, range: 3, spd: 2.5, w: 0.6, h: 7 },
+      { t: 'mover', x: 64, y: 0, range: 3, spd: -2.5, w: 0.6, h: 7 },
+      { t: 'coin', x: 62, y: 3 }, { t: 'coin', x: 63, y: 3 },
+      { t: 'hammer', x: 70, y: 0, len: 3, spd: 2 },
+      { t: 'wall', x: 76, gapY: 0, gapH: 1.8 },
+      { t: 'spikeball', x: 80, y: 0, range: 3, spd: 2.5 },
+      { t: 'star', x: 84, y: -3.5 },
+      { t: 'coin', x: 88, y: 0 }, { t: 'coin', x: 89, y: 0 },
+      { t: 'sawblade', x: 94, y: 1, range: 2, spd: 3 },
+      { t: 'coin', x: 98, y: 0 },
+      { t: 'finish', x: 105 },
+    ]
+  },
+  {
+    name: "Storm Citadel",
+    speed: 7,
+    bgIdx: 2,
+    elements: [
+      { t: 'coin', x: 5, y: 0 },
+      { t: 'wall', x: 10, gapY: 2, gapH: 1.8 },
+      { t: 'wall', x: 13, gapY: -2, gapH: 1.8 },
+      { t: 'wall', x: 16, gapY: 0, gapH: 1.8 },
+      { t: 'star', x: 13, y: 2.5 },
+      { t: 'sawblade', x: 22, y: 0, range: 3, spd: 2.5 },
+      { t: 'hammer', x: 26, y: 2, len: 2.5, spd: 3 },
+      { t: 'spikeball', x: 30, y: -1, range: 3, spd: 2 },
+      { t: 'coin', x: 28, y: -3 }, { t: 'coin', x: 29, y: -3 },
+      { t: 'spinner', x: 36, y: 0, len: 3.5, spd: -3 },
+      { t: 'spinner', x: 40, y: 1, len: 2, spd: 3.5 },
+      { t: 'spinner', x: 44, y: -1, len: 2, spd: -3.5 },
+      { t: 'star', x: 42, y: 3.5 },
+      { t: 'mover', x: 50, y: 0, range: 3.5, spd: 2.5, w: 0.6, h: 7 },
+      { t: 'sawblade', x: 54, y: 2, range: 2, spd: 3 },
+      { t: 'sawblade', x: 58, y: -2, range: 2, spd: -3 },
+      { t: 'coin', x: 56, y: 0 },
+      { t: 'hammer', x: 64, y: 0, len: 3, spd: 2.5 },
+      { t: 'wall', x: 70, gapY: -0.5, gapH: 1.8 },
+      { t: 'spikeball', x: 74, y: 1, range: 2.5, spd: 2.5 },
+      { t: 'spikeball', x: 78, y: -1, range: 2.5, spd: -2.5 },
+      { t: 'coin', x: 76, y: 3 }, { t: 'coin', x: 77, y: 3 },
+      { t: 'wall', x: 84, gapY: 1, gapH: 1.8 },
+      { t: 'sawblade', x: 88, y: 0, range: 3, spd: 3 },
+      { t: 'hammer', x: 94, y: 2, len: 2.5, spd: 3 },
+      { t: 'star', x: 96, y: -3 },
+      { t: 'coin', x: 100, y: 0 }, { t: 'coin', x: 101, y: 0 },
+      { t: 'finish', x: 110 },
+    ]
+  },
+  {
+    name: "The Gauntlet",
+    speed: 7.5,
+    bgIdx: 0,
+    elements: [
+      { t: 'coin', x: 5, y: 0 },
+      { t: 'sawblade', x: 10, y: 1, range: 3, spd: 3 },
+      { t: 'sawblade', x: 14, y: -1, range: 3, spd: -3 },
+      { t: 'wall', x: 18, gapY: 0, gapH: 1.6 },
+      { t: 'hammer', x: 22, y: 2, len: 3, spd: 3 },
+      { t: 'hammer', x: 26, y: -2, len: 3, spd: -3 },
+      { t: 'star', x: 24, y: 0 },
+      { t: 'spikeball', x: 32, y: 0, range: 3.5, spd: 2.5 },
+      { t: 'spinner', x: 36, y: 1, len: 3, spd: 3.5 },
+      { t: 'spinner', x: 40, y: -1, len: 3, spd: -3.5 },
+      { t: 'coin', x: 38, y: 3.5 }, { t: 'coin', x: 39, y: 3.5 },
+      { t: 'wall', x: 44, gapY: 2, gapH: 1.5 },
+      { t: 'wall', x: 47, gapY: -2, gapH: 1.5 },
+      { t: 'wall', x: 50, gapY: 0.5, gapH: 1.5 },
+      { t: 'sawblade', x: 54, y: 0, range: 3.5, spd: 3 },
+      { t: 'mover', x: 60, y: 0, range: 3.5, spd: 3, w: 0.6, h: 7 },
+      { t: 'mover', x: 64, y: 0, range: 3.5, spd: -3, w: 0.6, h: 7 },
+      { t: 'star', x: 62, y: 0 },
+      { t: 'hammer', x: 70, y: 0, len: 3, spd: 3 },
+      { t: 'spikeball', x: 74, y: 2, range: 3, spd: 3 },
+      { t: 'spikeball', x: 78, y: -2, range: 3, spd: -3 },
+      { t: 'coin', x: 76, y: 0 },
+      { t: 'wall', x: 82, gapY: 0, gapH: 1.5 },
+      { t: 'sawblade', x: 86, y: 2, range: 2.5, spd: 3.5 },
+      { t: 'sawblade', x: 90, y: -2, range: 2.5, spd: -3.5 },
+      { t: 'spinner', x: 96, y: 0, len: 3.5, spd: 3.5 },
+      { t: 'hammer', x: 102, y: 2, len: 3, spd: 3 },
+      { t: 'hammer', x: 106, y: -2, len: 3, spd: -3 },
+      { t: 'star', x: 104, y: 0 },
+      { t: 'coin', x: 110, y: 0 }, { t: 'coin', x: 111, y: 0 },
+      { t: 'finish', x: 120 },
     ]
   },
 ];
@@ -189,6 +418,10 @@ const GAME_ASSETS = {
   star: { name: 'star', color: 'yellow' },
   finish: { name: 'signage_finish_wide', color: 'neutral' },
   cannon: { name: 'cannon_base', color: 'blue' },
+  sawblade: { name: 'sawblade', color: 'neutral' },
+  spikeball: { name: 'spikeball', color: 'neutral' },
+  spring: { name: 'spring_pad', color: 'blue' },
+  hammer: { name: 'hammer_spikes', color: 'red' },
 };
 
 async function preloadGameAssets() {
@@ -285,14 +518,15 @@ function buildWorld(scene, existingGroup) {
     sign.position.set(offset + 2, 3.5, 1);
     group.add(sign);
 
-    // Cannon at level start — base flat on ground, turret tilted 45°
+    // Cannon at level start
     const cannonAsset = getAsset(GAME_ASSETS.cannon.name, GAME_ASSETS.cannon.color);
     if (cannonAsset) {
       cannonAsset.scale.setScalar(0.35);
       cannonAsset.position.set(offset - 1, Y_MIN, 0);
+      cannonAsset.rotation.set(0.01, 1.56, 0.01);
       cannonAsset.traverse(child => {
-        if (child.name && child.name.includes('turret')) {
-          child.rotation.x = Math.PI / 4; // tilt barrel forward-up 45°
+        if (child.name && child.name.includes('barrel')) {
+          child.rotation.set(-0.64, 0.01, 0.01);
         }
       });
       group.add(cannonAsset);
@@ -439,11 +673,58 @@ function buildWorld(scene, existingGroup) {
         if (ca) {
           ca.scale.setScalar(0.35);
           ca.position.set(ex, Y_MIN, 0);
+          ca.rotation.set(0.01, 1.56, 0.01);
           ca.traverse(child => {
-            if (child.name && child.name.includes('turret')) child.rotation.x = Math.PI / 4;
+            if (child.name && child.name.includes('barrel')) child.rotation.set(-0.64, 0.01, 0.01);
           });
           group.add(ca);
         }
+      }
+      else if (el.t === 'sawblade') {
+        const saw = getAsset(GAME_ASSETS.sawblade.name, GAME_ASSETS.sawblade.color);
+        let sawMesh;
+        if (fitAsset(saw, 1.2, 1.2, 1.2, ex, el.y, 0)) {
+          sawMesh = saw;
+        } else {
+          sawMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.1, 16), mat(0x888888));
+          sawMesh.position.set(ex, el.y, 0);
+        }
+        group.add(sawMesh);
+        colliders.push({
+          mesh: sawMesh, type: 'sawblade', x: ex, baseY: el.y,
+          range: el.range || 0, spd: el.spd || 2, time: 0, radius: 0.55
+        });
+      }
+      else if (el.t === 'spikeball') {
+        const spike = getAsset(GAME_ASSETS.spikeball.name, GAME_ASSETS.spikeball.color);
+        let spikeMesh;
+        if (fitAsset(spike, 0.8, 0.8, 0.8, ex, el.y, 0)) {
+          spikeMesh = spike;
+        } else {
+          spikeMesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), mat(0x555555));
+          spikeMesh.position.set(ex, el.y, 0);
+        }
+        group.add(spikeMesh);
+        colliders.push({
+          mesh: spikeMesh, type: 'spikeball', x: ex, baseY: el.y,
+          range: el.range || 0, spd: el.spd || 1.5, time: 0, radius: 0.35
+        });
+      }
+      else if (el.t === 'hammer') {
+        const ham = getAsset(GAME_ASSETS.hammer.name, GAME_ASSETS.hammer.color);
+        let hamMesh;
+        const hamLen = el.len || 2;
+        if (fitAsset(ham, 0.8, hamLen, 0.8, ex, el.y, 0)) {
+          hamMesh = ham;
+        } else {
+          hamMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, hamLen, 0.6), mat(0xCC4444));
+          hamMesh.position.set(ex, el.y, 0);
+        }
+        group.add(hamMesh);
+        colliders.push({
+          mesh: hamMesh, type: 'hammer', x: ex, y: el.y,
+          len: hamLen, spd: el.spd || 2, time: 0
+        });
       }
     });
   });
@@ -532,7 +813,7 @@ export default function BounceBlob() {
   const [progress, setProgress] = useState(0);
   const [deathInfo, setDeathInfo] = useState('');
   const [deathLog, setDeathLog] = useState([]);
-  const [levelStars, setLevelStars] = useState([0, 0, 0]);
+  const [levelStars, setLevelStars] = useState(Array(10).fill(0));
 
   // Count all stars across all levels
   const allStarCount = LEVELS.reduce((sum, lvl) => sum + lvl.elements.filter(e => e.t === 'star').length, 0);
@@ -679,6 +960,25 @@ export default function BounceBlob() {
         else if (c.type === 'finish') {
           if (px > c.x - 0.5) return 'win';
         }
+        else if (c.type === 'sawblade') {
+          const sy = c.range > 0 ? c.mesh.position.y : c.baseY;
+          const dx = px - c.x;
+          const dy = py - sy;
+          if (Math.sqrt(dx * dx + dy * dy) < pr + c.radius) return 'die';
+        }
+        else if (c.type === 'spikeball') {
+          const sy = c.range > 0 ? c.mesh.position.y : c.baseY;
+          const dx = px - c.x;
+          const dy = py - sy;
+          if (Math.sqrt(dx * dx + dy * dy) < pr + c.radius) return 'die';
+        }
+        else if (c.type === 'hammer') {
+          const hx = c.currentX || c.x;
+          const hy = c.currentY || c.y;
+          const dx = px - hx;
+          const dy = py - hy;
+          if (Math.sqrt(dx * dx + dy * dy) < pr + 0.5) return 'die';
+        }
       }
       return null;
     }
@@ -809,6 +1109,25 @@ export default function BounceBlob() {
         colliders.forEach(c => {
           if (c.type === 'spinner') { c.angle += c.spd * dt; c.mesh.rotation.z = c.angle; }
           if (c.type === 'mover') { c.time += dt; c.mesh.position.y = c.baseY + Math.sin(c.time * c.spd) * c.range; }
+          if (c.type === 'sawblade') {
+            c.time += dt;
+            c.mesh.rotation.y += dt * 8; // spin
+            if (c.range > 0) c.mesh.position.y = c.baseY + Math.sin(c.time * c.spd) * c.range;
+          }
+          if (c.type === 'spikeball') {
+            c.time += dt;
+            if (c.range > 0) c.mesh.position.y = c.baseY + Math.sin(c.time * c.spd) * c.range;
+          }
+          if (c.type === 'hammer') {
+            c.time += dt;
+            // Swing: mostly up, quick slam down
+            const cycle = (c.time * c.spd) % (Math.PI * 2);
+            const swing = Math.sin(cycle);
+            c.mesh.rotation.z = swing * 1.2;
+            // Update collision position based on swing
+            c.currentX = c.x + Math.sin(c.mesh.rotation.z) * c.len * 0.5;
+            c.currentY = c.y - Math.cos(c.mesh.rotation.z) * c.len * 0.5;
+          }
         });
 
         // Collision
@@ -871,6 +1190,9 @@ export default function BounceBlob() {
         colliders.forEach(c => {
           if (c.type === 'spinner') { c.angle += c.spd * dt; c.mesh.rotation.z = c.angle; }
           if (c.type === 'mover') { c.time += dt; c.mesh.position.y = c.baseY + Math.sin(c.time * c.spd) * c.range; }
+          if (c.type === 'sawblade') { c.time += dt; c.mesh.rotation.y += dt * 8; if (c.range > 0) c.mesh.position.y = c.baseY + Math.sin(c.time * c.spd) * c.range; }
+          if (c.type === 'spikeball') { c.time += dt; if (c.range > 0) c.mesh.position.y = c.baseY + Math.sin(c.time * c.spd) * c.range; }
+          if (c.type === 'hammer') { c.time += dt; const cycle = (c.time * c.spd) % (Math.PI * 2); c.mesh.rotation.z = Math.sin(cycle) * 1.2; }
         });
         // Manual restart: click, tap, space or R to continue
       }
@@ -978,7 +1300,7 @@ export default function BounceBlob() {
             Play
           </button>
           <div style={{ marginTop: '20px', fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
-            3 levels · {allStarCount} stars · Continuous run
+            10 levels · {allStarCount} stars · Continuous run
           </div>
           <div style={{ marginTop: '10px', fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
             Space / Click / Tap to control
