@@ -411,8 +411,8 @@ function fitAsset(asset, targetW, targetH, targetD, cx, cy, cz) {
 
 const GAME_ASSETS = {
   wall: { name: 'barrier_4x1x4', color: 'red' },
-  spinner_hub: { name: 'bomb', color: 'neutral' },
-  spinner_tip: { name: 'bomb', color: 'neutral' },
+  spinner: { name: 'swiper_double', color: 'red' },
+  spinner_single: { name: 'swiper', color: 'blue' },
   mover: { name: 'barrier_2x1x2', color: 'blue' },
   coin: { name: 'diamond', color: 'blue' },
   star: { name: 'star', color: 'yellow' },
@@ -422,12 +422,33 @@ const GAME_ASSETS = {
   spikeball: { name: 'spikeball', color: 'neutral' },
   spring: { name: 'spring_pad', color: 'blue' },
   hammer: { name: 'hammer_spikes', color: 'red' },
+  hoop: { name: 'hoop', color: 'blue' },
+  bomb: { name: 'bomb_A', color: 'red' },
+  spikeroller: { name: 'spikeroller_horizontal', color: 'neutral' },
+  cone: { name: 'cone', color: 'red' },
+  chest: { name: 'chest', color: 'blue' },
+  heart: { name: 'heart', color: 'red' },
+  arch: { name: 'arch', color: 'blue' },
+  flag: { name: 'flag_A', color: 'red' },
+  crate: { name: 'platform_wood_1x1x1', color: 'neutral' },
+  spikewall: { name: 'spikeblock_double_horizontal', color: 'blue' },
+  arrow_sign: { name: 'signage_arrow_stand', color: 'blue' },
+  saw_trap: { name: 'saw_trap', color: 'red' },
+  saw_trap_double: { name: 'saw_trap_double', color: 'red' },
+  saw_trap_long: { name: 'saw_trap_long', color: 'red' },
 };
 
 async function preloadGameAssets() {
-  await Promise.all(
-    Object.values(GAME_ASSETS).map(a => loadAsset(a.name, a.color))
-  );
+  const promises = Object.values(GAME_ASSETS).map(a => loadAsset(a.name, a.color));
+  // Preload swiper_double in all colors for spinner color support
+  ['red', 'blue', 'green', 'yellow'].forEach(c => {
+    promises.push(loadAsset('swiper_double', c));
+    promises.push(loadAsset('swiper', c));
+    promises.push(loadAsset('saw_trap', c));
+    promises.push(loadAsset('saw_trap_double', c));
+    promises.push(loadAsset('saw_trap_long', c));
+  });
+  await Promise.all(promises);
 }
 
 // ─── Build the Player (cute blob) ───
@@ -570,22 +591,30 @@ function buildWorld(scene, existingGroup) {
         }
       }
       else if (el.t === 'spinner') {
+        const swiperColor = el.color || 'red';
+        const scale = (el.len * 2) / 5.5;
+
+        // Rotating arms pivot
         const pivot = new THREE.Group();
         pivot.position.set(ex, el.y, 0);
-        const barGeo = new THREE.CylinderGeometry(0.12, 0.12, el.len * 2, 8);
-        barGeo.rotateZ(Math.PI / 2);
-        const barMat = mat(obstColors[idx % obstColors.length]);
-        pivot.add(new THREE.Mesh(barGeo, barMat));
-
-        const hub = getAsset(GAME_ASSETS.spinner_hub.name, GAME_ASSETS.spinner_hub.color);
-        if (fitAsset(hub, 0.5, 0.5, 0.5, 0, 0, 0)) { pivot.add(hub); }
-        else { pivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(0xFFFFFF))); }
-
-        [-1, 1].forEach(side => {
-          const tip = getAsset(GAME_ASSETS.spinner_tip.name, GAME_ASSETS.spinner_tip.color);
-          if (fitAsset(tip, 0.4, 0.4, 0.4, side * el.len, 0, 0)) { pivot.add(tip); }
-          else { const t = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), barMat); t.position.set(side * el.len, 0, 0); pivot.add(t); }
-        });
+        const swiperAsset = getAsset(GAME_ASSETS.spinner.name, swiperColor);
+        if (swiperAsset) {
+          const center = new THREE.Group();
+          swiperAsset.scale.setScalar(scale);
+          swiperAsset.position.set(0, -0.75 * scale, 0);
+          center.add(swiperAsset);
+          // Tilt so post points toward camera, arms stay in XY plane
+          center.rotation.x = Math.PI / 2;
+          pivot.add(center);
+        } else {
+          const barGeo = new THREE.CylinderGeometry(0.12, 0.12, el.len * 2, 8);
+          barGeo.rotateZ(Math.PI / 2);
+          pivot.add(new THREE.Mesh(barGeo, mat(obstColors[idx % obstColors.length])));
+          [-1, 1].forEach(side => {
+            const t = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), mat(0xff4444));
+            t.position.set(side * el.len, 0, 0); pivot.add(t);
+          });
+        }
         group.add(pivot);
         colliders.push({ mesh: pivot, type: 'spinner', x: ex, y: el.y, len: el.len, spd: el.spd, angle: 0 });
       }
@@ -725,6 +754,147 @@ function buildWorld(scene, existingGroup) {
           mesh: hamMesh, type: 'hammer', x: ex, y: el.y,
           len: hamLen, spd: el.spd || 2, time: 0
         });
+      }
+      else if (el.t === 'hoop') {
+        const hoop = getAsset(GAME_ASSETS.hoop.name, el.color || GAME_ASSETS.hoop.color);
+        if (fitAsset(hoop, 2, 2, 0.5, ex, el.y, 0)) {
+          group.add(hoop);
+        } else {
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.1, 8, 24), mat(0x2196F3));
+          ring.position.set(ex, el.y, 0); group.add(ring);
+        }
+        collectibles.push({ mesh: hoop || group.children[group.children.length-1], type: 'hoop', x: ex, y: el.y, collected: false, levelIdx: lvlIdx, anim: !!el.anim });
+      }
+      else if (el.t === 'bomb') {
+        const bomb = getAsset(GAME_ASSETS.bomb.name, el.color || GAME_ASSETS.bomb.color);
+        let bMesh;
+        if (fitAsset(bomb, 0.8, 0.8, 0.8, ex, el.y, 0)) { bMesh = bomb; }
+        else { bMesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), mat(0x333333)); bMesh.position.set(ex, el.y, 0); }
+        group.add(bMesh);
+        colliders.push({ mesh: bMesh, type: 'bomb', x: ex, y: el.y, radius: 0.4 });
+      }
+      else if (el.t === 'spikeroller') {
+        const roller = getAsset(GAME_ASSETS.spikeroller.name, GAME_ASSETS.spikeroller.color);
+        const wrapper = new THREE.Group();
+        wrapper.position.set(ex, el.y, 0);
+        let inner;
+        if (fitAsset(roller, 2, 0.6, 0.6, 0, 0, 0)) { inner = roller; }
+        else { inner = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 2, 12), mat(0x666666)); inner.rotation.z = Math.PI/2; }
+        wrapper.add(inner);
+        // Apply editor rotation on wrapper so animation (on inner) doesn't conflict
+        if (el.rotX || el.rotY || el.rotZ) {
+          const deg = Math.PI / 180;
+          if (el.rotX) wrapper.rotation.x = el.rotX * deg;
+          if (el.rotY) wrapper.rotation.y = el.rotY * deg;
+          if (el.rotZ) wrapper.rotation.z = el.rotZ * deg;
+        }
+        group.add(wrapper);
+        colliders.push({ mesh: wrapper, inner, type: 'spikeroller', x: ex, y: el.y, hw: 1, hh: 0.3, spd: el.spd || 2, time: 0, range: el.range || 0, baseY: el.y });
+      }
+      else if (el.t === 'cone') {
+        const c = getAsset(GAME_ASSETS.cone.name, el.color || GAME_ASSETS.cone.color);
+        if (fitAsset(c, 0.6, 0.8, 0.6, ex, el.y, 0)) { group.add(c); }
+        else { group.add(new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 8), mat(0xFF6600)).translateX(ex).translateY(el.y)); }
+      }
+      else if (el.t === 'chest') {
+        const ch = getAsset(GAME_ASSETS.chest.name, el.color || GAME_ASSETS.chest.color);
+        if (fitAsset(ch, 0.8, 0.6, 0.6, ex, el.y, 0)) { group.add(ch); }
+        else { group.add(new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.6), mat(0x8B4513)).translateX(ex).translateY(el.y)); }
+        collectibles.push({ mesh: ch || group.children[group.children.length-1], type: 'chest', x: ex, y: el.y, collected: false, levelIdx: lvlIdx });
+      }
+      else if (el.t === 'heart') {
+        const h = getAsset(GAME_ASSETS.heart.name, GAME_ASSETS.heart.color);
+        if (fitAsset(h, 0.6, 0.6, 0.6, ex, el.y, 0)) { group.add(h); }
+        else { group.add(new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), mat(0xFF1744)).translateX(ex).translateY(el.y)); }
+        collectibles.push({ mesh: h || group.children[group.children.length-1], type: 'heart', x: ex, y: el.y, collected: false, levelIdx: lvlIdx });
+      }
+      else if (el.t === 'arch') {
+        const a = getAsset(GAME_ASSETS.arch.name, el.color || GAME_ASSETS.arch.color);
+        if (fitAsset(a, 3, 4, 1, ex, el.y, 0)) { group.add(a); }
+      }
+      else if (el.t === 'flag') {
+        const f = getAsset(GAME_ASSETS.flag.name, el.color || GAME_ASSETS.flag.color);
+        if (fitAsset(f, 0.5, 2, 0.5, ex, el.y, 0)) { group.add(f); }
+      }
+      else if (el.t === 'spikewall') {
+        const sz = el.scale || 1;
+        const sw = getAsset(GAME_ASSETS.spikewall.name, el.color || GAME_ASSETS.spikewall.color);
+        let swMesh;
+        if (fitAsset(sw, 2 * sz, 1 * sz, 1 * sz, ex, el.y, 0)) { swMesh = sw; }
+        else { swMesh = new THREE.Mesh(new THREE.BoxGeometry(2 * sz, 1 * sz, 1 * sz), mat(0x4444aa)); swMesh.position.set(ex, el.y, 0); }
+        group.add(swMesh);
+        colliders.push({ mesh: swMesh, type: 'spikewall', x: ex, y: el.y, hw: 1 * sz, hh: 0.5 * sz, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 1, time: 0, baseX: ex, baseY: el.y });
+      }
+      else if (el.t === 'arrow_sign') {
+        const sz = el.scale || 1;
+        const as = getAsset(GAME_ASSETS.arrow_sign.name, el.color || GAME_ASSETS.arrow_sign.color);
+        if (fitAsset(as, 1 * sz, 2 * sz, 0.5 * sz, ex, el.y, 0)) { group.add(as); }
+      }
+      else if (el.t === 'spinner_single') {
+        const swiperColor = el.color || 'blue';
+        const scale = (el.len * 2) / 3.12;
+        const pivot = new THREE.Group();
+        pivot.position.set(ex, el.y, 0);
+        const swiperAsset = getAsset(GAME_ASSETS.spinner_single.name, swiperColor);
+        if (swiperAsset) {
+          const center = new THREE.Group();
+          swiperAsset.scale.setScalar(scale);
+          swiperAsset.position.set(0, -0.75 * scale, 0);
+          center.add(swiperAsset);
+          center.rotation.x = Math.PI / 2;
+          pivot.add(center);
+        } else {
+          const barGeo = new THREE.CylinderGeometry(0.12, 0.12, el.len, 8);
+          barGeo.rotateZ(Math.PI / 2);
+          pivot.add(new THREE.Mesh(barGeo, mat(0x4444ff)));
+        }
+        group.add(pivot);
+        colliders.push({ mesh: pivot, type: 'spinner', x: ex, y: el.y, len: el.len, spd: el.spd, angle: 0 });
+      }
+      else if (el.t === 'saw_trap') {
+        const sz = el.scale || 1;
+        const st = getAsset(GAME_ASSETS.saw_trap.name, el.color || GAME_ASSETS.saw_trap.color);
+        let stMesh;
+        if (fitAsset(st, 1.5 * sz, 1.5 * sz, 1.5 * sz, ex, el.y, 0)) { stMesh = st; }
+        else { stMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * sz, 0.5 * sz, 0.15, 16), mat(0xCC4444)); stMesh.position.set(ex, el.y, 0); }
+        group.add(stMesh);
+        colliders.push({ mesh: stMesh, type: 'saw_trap', x: ex, baseX: ex, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, time: 0, radius: 0.5 * sz });
+      }
+      else if (el.t === 'saw_trap_double') {
+        const sz = el.scale || 1;
+        const st = getAsset(GAME_ASSETS.saw_trap_double.name, el.color || GAME_ASSETS.saw_trap_double.color);
+        let stMesh;
+        if (fitAsset(st, 2 * sz, 1.5 * sz, 1.5 * sz, ex, el.y, 0)) { stMesh = st; }
+        else { stMesh = new THREE.Mesh(new THREE.BoxGeometry(2 * sz, 0.8 * sz, 0.8 * sz), mat(0xCC4444)); stMesh.position.set(ex, el.y, 0); }
+        group.add(stMesh);
+        colliders.push({ mesh: stMesh, type: 'saw_trap', x: ex, baseX: ex, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, time: 0, radius: 0.7 * sz });
+      }
+      else if (el.t === 'saw_trap_long') {
+        const sz = el.scale || 1;
+        const st = getAsset(GAME_ASSETS.saw_trap_long.name, el.color || GAME_ASSETS.saw_trap_long.color);
+        let stMesh;
+        if (fitAsset(st, 3 * sz, 1.5 * sz, 1.5 * sz, ex, el.y, 0)) { stMesh = st; }
+        else { stMesh = new THREE.Mesh(new THREE.BoxGeometry(3 * sz, 0.8 * sz, 0.8 * sz), mat(0xCC4444)); stMesh.position.set(ex, el.y, 0); }
+        group.add(stMesh);
+        colliders.push({ mesh: stMesh, type: 'saw_trap', x: ex, baseX: ex, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, time: 0, radius: 1 * sz });
+      }
+      else if (el.t === 'crate') {
+        const sz = el.scale || 1;
+        const cr = getAsset(GAME_ASSETS.crate.name, GAME_ASSETS.crate.color);
+        if (fitAsset(cr, sz, sz, sz, ex, el.y, 0)) { group.add(cr); }
+        else { group.add(new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), mat(0x8B6914))); group.children[group.children.length-1].position.set(ex, el.y, 0); }
+        colliders.push({ type: 'box', x: ex, y: el.y, hw: sz / 2, hh: sz / 2 });
+      }
+
+      // Apply editor rotation to last added child (skip types that handle their own rotation)
+      if ((el.rotX || el.rotY || el.rotZ) && el.t !== 'spinner' && el.t !== 'spinner_single' && el.t !== 'spikeroller') {
+        const lastChild = group.children[group.children.length - 1];
+        if (lastChild) {
+          const deg = Math.PI / 180;
+          if (el.rotX) lastChild.rotation.x = el.rotX * deg;
+          if (el.rotY) lastChild.rotation.y = el.rotY * deg;
+          if (el.rotZ) lastChild.rotation.z = el.rotZ * deg;
+        }
       }
     });
   });
@@ -943,6 +1113,7 @@ export default function BounceBlob() {
               py + pr > c.y - c.hh && py - pr < c.y + c.hh) return 'die';
         }
         else if (c.type === 'spinner') {
+          // Arms rotate around Z-axis, sweeping in XY plane (visible in 2.5D)
           const cos = Math.cos(c.angle);
           const sin = Math.sin(c.angle);
           for (let i = 0; i <= 8; i++) {
@@ -978,6 +1149,25 @@ export default function BounceBlob() {
           const dx = px - hx;
           const dy = py - hy;
           if (Math.sqrt(dx * dx + dy * dy) < pr + 0.5) return 'die';
+        }
+        else if (c.type === 'bomb') {
+          const dx = px - c.x, dy = py - c.y;
+          if (Math.sqrt(dx * dx + dy * dy) < pr + c.radius) return 'die';
+        }
+        else if (c.type === 'spikeroller') {
+          const ry = c.baseY + (c.range > 0 ? Math.sin(c.time * c.spd) * c.range : 0);
+          if (Math.abs(px - c.x) < pr + c.hw && Math.abs(py - ry) < pr + c.hh) return 'die';
+        }
+        else if (c.type === 'spikewall') {
+          const cx = c.currentX || c.x;
+          const cy = c.currentY || c.y;
+          if (Math.abs(px - cx) < pr + c.hw && Math.abs(py - cy) < pr + c.hh) return 'die';
+        }
+        else if (c.type === 'saw_trap') {
+          const cx = c.currentX || c.x;
+          const cy = c.currentY || c.y;
+          const dx = px - cx, dy = py - cy;
+          if (Math.sqrt(dx * dx + dy * dy) < pr + c.radius) return 'die';
         }
       }
       return null;
@@ -1091,7 +1281,11 @@ export default function BounceBlob() {
         g.playerY += g.playerVelY * dt;
         g.playerX += lvl.speed * dt;
 
-        // Boundary death
+        // Clamp to ceiling/floor (safe boundaries)
+        if (g.playerY > Y_MAX) g.playerY = Y_MAX;
+        if (g.playerY < Y_MIN) g.playerY = Y_MIN;
+
+        // Boundary death only if somehow way outside (shouldn't happen now)
         if (g.playerY < DEATH_Y_MIN || g.playerY > DEATH_Y_MAX) {
           g.state = 'dead';
           g.deathTimer = 0;
@@ -1120,13 +1314,39 @@ export default function BounceBlob() {
           }
           if (c.type === 'hammer') {
             c.time += dt;
-            // Swing: mostly up, quick slam down
             const cycle = (c.time * c.spd) % (Math.PI * 2);
             const swing = Math.sin(cycle);
             c.mesh.rotation.z = swing * 1.2;
-            // Update collision position based on swing
             c.currentX = c.x + Math.sin(c.mesh.rotation.z) * c.len * 0.5;
             c.currentY = c.y - Math.cos(c.mesh.rotation.z) * c.len * 0.5;
+          }
+          if (c.type === 'spikeroller') {
+            c.time += dt;
+            if (c.inner) c.inner.rotation.x += dt * 4;
+            if (c.range > 0) c.mesh.position.y = c.baseY + Math.sin(c.time * c.spd) * c.range;
+          }
+          if (c.type === 'spikewall') {
+            c.time += dt;
+            const osc = Math.sin(c.time * c.spd);
+            if (c.rangeX) c.mesh.position.x = c.baseX + osc * c.rangeX;
+            if (c.rangeY) c.mesh.position.y = c.baseY + osc * c.rangeY;
+            c.currentX = c.mesh.position.x;
+            c.currentY = c.mesh.position.y;
+          }
+          if (c.type === 'saw_trap') {
+            c.time += dt;
+            // Spin only sawblade children
+            c.mesh.traverse(child => {
+              if (child.name && child.name.includes('sawblade')) {
+                child.rotation.y += dt * c.spd * 4;
+              }
+            });
+            // Move if range set
+            const osc = Math.sin(c.time * c.spd);
+            if (c.rangeX) c.mesh.position.x = c.baseX + osc * c.rangeX;
+            if (c.rangeY) c.mesh.position.y = c.baseY + osc * c.rangeY;
+            c.currentX = c.mesh.position.x;
+            c.currentY = c.mesh.position.y;
           }
         });
 
@@ -1158,15 +1378,21 @@ export default function BounceBlob() {
           const dx = g.playerX - col.x;
           const dy = g.playerY - col.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < (col.type === 'coin' ? 0.6 : 0.7)) {
+          const pickupDist = (col.type === 'hoop' ? 1.0 : col.type === 'chest' ? 0.8 : col.type === 'coin' ? 0.6 : 0.7);
+          if (dist < pickupDist) {
             col.collected = true;
             col.mesh.visible = false;
             if (col.type === 'coin') { g.coins++; setCoins(g.coins); particleSys.emit(scene, col.x, col.y, PAL.coin, 6); }
+            else if (col.type === 'hoop') { g.coins += 3; setCoins(g.coins); particleSys.emit(scene, col.x, col.y, 0x2196F3, 10); }
+            else if (col.type === 'chest') { g.coins += 5; setCoins(g.coins); particleSys.emit(scene, col.x, col.y, PAL.coin, 15); }
+            else if (col.type === 'heart') { g.coins += 2; setCoins(g.coins); particleSys.emit(scene, col.x, col.y, 0xFF1744, 8); }
             else { g.stars++; setStars(g.stars); particleSys.emit(scene, col.x, col.y, PAL.star, 10); }
           }
           if (!col.collected) {
-            col.mesh.rotation.y += dt * 2;
-            col.mesh.position.y = col.y + Math.sin(g.time * 3 + col.x) * 0.1;
+            if (col.type !== 'hoop' || col.anim) {
+              col.mesh.rotation.y += dt * 2;
+              col.mesh.position.y = col.y + Math.sin(g.time * 3 + col.x) * 0.1;
+            }
           }
         });
 
@@ -1193,6 +1419,8 @@ export default function BounceBlob() {
           if (c.type === 'sawblade') { c.time += dt; c.mesh.rotation.y += dt * 8; if (c.range > 0) c.mesh.position.y = c.baseY + Math.sin(c.time * c.spd) * c.range; }
           if (c.type === 'spikeball') { c.time += dt; if (c.range > 0) c.mesh.position.y = c.baseY + Math.sin(c.time * c.spd) * c.range; }
           if (c.type === 'hammer') { c.time += dt; const cycle = (c.time * c.spd) % (Math.PI * 2); c.mesh.rotation.z = Math.sin(cycle) * 1.2; }
+          if (c.type === 'spikewall') { c.time += dt; const osc = Math.sin(c.time * c.spd); if (c.rangeX) c.mesh.position.x = c.baseX + osc * c.rangeX; if (c.rangeY) c.mesh.position.y = c.baseY + osc * c.rangeY; c.currentX = c.mesh.position.x; c.currentY = c.mesh.position.y; }
+          if (c.type === 'saw_trap') { c.time += dt; c.mesh.traverse(ch => { if (ch.name && ch.name.includes('sawblade')) ch.rotation.y += dt * c.spd * 4; }); const osc = Math.sin(c.time * c.spd); if (c.rangeX) c.mesh.position.x = c.baseX + osc * c.rangeX; if (c.rangeY) c.mesh.position.y = c.baseY + osc * c.rangeY; c.currentX = c.mesh.position.x; c.currentY = c.mesh.position.y; }
         });
         // Manual restart: click, tap, space or R to continue
       }

@@ -11,7 +11,7 @@
   body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; user-select: none; }
 
   /* ─── Sidebar ─── */
-  #sidebar { width: 250px; min-width: 250px; background: #16213e; display: flex; flex-direction: column; border-right: 1px solid #333; z-index: 10; }
+  #sidebar { width: 250px; min-width: 250px; background: #16213e; display: flex; flex-direction: column; border-right: 1px solid #333; z-index: 10; overflow-y: auto; }
   #sidebar h2 { padding: 14px 16px; color: #FF6B8A; font-size: 16px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
   #sidebar h2 span { font-size: 11px; color: #888; font-weight: 400; }
 
@@ -29,7 +29,7 @@
   .tool-key { margin-left: auto; font-size: 9px; color: #555; background: #111; padding: 1px 4px; border-radius: 2px; }
 
   /* ─── Properties ─── */
-  #props { padding: 10px 12px; border-top: 1px solid #333; overflow-y: auto; flex: 1; }
+  #props { padding: 10px 12px; border-top: 1px solid #333; }
   .prop-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
   .prop-row label { font-size: 11px; color: #888; width: 50px; flex-shrink: 0; }
   .prop-row input { flex: 1; padding: 4px 6px; background: #111; border: 1px solid #333; border-radius: 3px; color: #fff; font-size: 11px; }
@@ -106,6 +106,7 @@
     <div class="section-title">Obstacles</div>
     <button class="tool-btn" data-tool="wall"><span class="tool-icon" style="background:#FFAB91;">▬</span> Wall<span class="tool-key">1</span></button>
     <button class="tool-btn" data-tool="spinner"><span class="tool-icon" style="background:#F06292;">⟳</span> Spinner<span class="tool-key">2</span></button>
+    <button class="tool-btn" data-tool="spinner_single"><span class="tool-icon" style="background:#42A5F5;">⟲</span> Swiper</button>
     <button class="tool-btn" data-tool="mover"><span class="tool-icon" style="background:#7986CB;">↕</span> Mover<span class="tool-key">3</span></button>
   </div>
 
@@ -126,6 +127,26 @@
     <button class="tool-btn" data-tool="sawblade"><div class="tool-icon" style="background:#888">⚙</div>Sawblade<span class="tool-key">8</span></button>
     <button class="tool-btn" data-tool="spikeball"><div class="tool-icon" style="background:#555">●</div>Spikeball<span class="tool-key">9</span></button>
     <button class="tool-btn" data-tool="hammer"><div class="tool-icon" style="background:#C44">🔨</div>Hammer<span class="tool-key">0</span></button>
+    <button class="tool-btn" data-tool="bomb"><div class="tool-icon" style="background:#333">💣</div>Bomb</button>
+    <button class="tool-btn" data-tool="spikeroller"><div class="tool-icon" style="background:#666">🔩</div>Spikeroller</button>
+    <button class="tool-btn" data-tool="spikewall"><div class="tool-icon" style="background:#44a">▥</div>Spikewall</button>
+    <button class="tool-btn" data-tool="saw_trap"><div class="tool-icon" style="background:#C44">⚙</div>Saw Trap</button>
+    <button class="tool-btn" data-tool="saw_trap_double"><div class="tool-icon" style="background:#C44">⚙⚙</div>Saw Trap x2</button>
+    <button class="tool-btn" data-tool="saw_trap_long"><div class="tool-icon" style="background:#C44">⚙─</div>Saw Trap Long</button>
+  </div>
+  <div class="section">
+    <div class="section-title">Bonus</div>
+    <button class="tool-btn" data-tool="hoop"><div class="tool-icon" style="background:#2196F3">◯</div>Hoop</button>
+    <button class="tool-btn" data-tool="chest"><div class="tool-icon" style="background:#8B4513">📦</div>Chest</button>
+    <button class="tool-btn" data-tool="heart"><div class="tool-icon" style="background:#F44">♥</div>Heart</button>
+  </div>
+  <div class="section">
+    <div class="section-title">Deco</div>
+    <button class="tool-btn" data-tool="cone"><div class="tool-icon" style="background:#F60">▲</div>Cone</button>
+    <button class="tool-btn" data-tool="arch"><div class="tool-icon" style="background:#42A5F5">⌒</div>Arch</button>
+    <button class="tool-btn" data-tool="flag"><div class="tool-icon" style="background:#E53935">⚑</div>Flag</button>
+    <button class="tool-btn" data-tool="crate"><div class="tool-icon" style="background:#8B6914">▢</div>Crate</button>
+    <button class="tool-btn" data-tool="arrow_sign"><div class="tool-icon" style="background:#42A5F5">→</div>Arrow Sign</button>
   </div>
 
   <div id="props">
@@ -137,6 +158,7 @@
 <div id="main">
   <div id="toolbar">
     <button class="tb pink" id="btn-play">▶ Play</button>
+    <button class="tb" id="btn-pause-anim">⏸ Pause</button>
     <div class="tb-sep"></div>
     <button class="tb green" id="btn-export-code">Copy Game Code</button>
     <button class="tb" id="btn-export-json">Export JSON</button>
@@ -180,8 +202,12 @@ const Y_MIN = -4.5, Y_MAX = 4.5;
 const PLAYER_RADIUS = 0.35;
 const COLORS = {
   wall: 0xFFAB91, spinner: 0xF06292, mover: 0x7986CB,
-  coin: 0xFFD700, star: 0xFFAB00, finish: 0x69F0AE, cannon: 0x42A5F5,
+  coin: 0xFFD700, star: 0xFFAB00, finish: 0x69F0AE, cannon: 0x42A5F5, spinner_single: 0x42A5F5,
   sawblade: 0x888888, spikeball: 0x555555, hammer: 0xCC4444,
+  bomb: 0x333333, spikeroller: 0x666666, hoop: 0x2196F3,
+  chest: 0x8B4513, heart: 0xFF1744, cone: 0xFF6600, arch: 0x42A5F5, flag: 0xE53935, crate: 0x8B6914,
+  spikewall: 0x4444aa, arrow_sign: 0x42A5F5,
+  saw_trap: 0xCC4444, saw_trap_double: 0xCC4444, saw_trap_long: 0xCC4444,
   ground: [0x81C784, 0xFFCC80, 0xB39DDB],
   selected: 0xFF6B8A,
 };
@@ -194,6 +220,7 @@ let lvlIdx = 0;
 let tool = 'select';
 let selectedIdx = -1;
 let snap = true;
+let animPaused = false;
 let undoStack = [];
 
 // Play mode state
@@ -333,7 +360,8 @@ function cloneAsset(cached) {
 // Preload commonly used assets
 const ASSET_MAP = {
   wall: { name: 'barrier_4x1x4', color: 'red' },
-  spinner: { name: 'bomb', color: 'neutral' },
+  spinner: { name: 'swiper_double', color: 'red' },
+  spinner_single: { name: 'swiper', color: 'blue' },
   mover: { name: 'barrier_2x1x2', color: 'blue' },
   coin: { name: 'diamond', color: 'blue' },
   star: { name: 'star', color: 'yellow' },
@@ -343,11 +371,31 @@ const ASSET_MAP = {
   spikeball: { name: 'spikeball', color: 'neutral' },
   spring: { name: 'spring_pad', color: 'blue' },
   hammer: { name: 'hammer_spikes', color: 'red' },
+  hoop: { name: 'hoop', color: 'blue' },
+  bomb: { name: 'bomb_A', color: 'red' },
+  spikeroller: { name: 'spikeroller_horizontal', color: 'neutral' },
+  cone: { name: 'cone', color: 'red' },
+  chest: { name: 'chest', color: 'blue' },
+  heart: { name: 'heart', color: 'red' },
+  arch: { name: 'arch', color: 'blue' },
+  flag: { name: 'flag_A', color: 'red' },
+  crate: { name: 'platform_wood_1x1x1', color: 'neutral' },
+  spikewall: { name: 'spikeblock_double_horizontal', color: 'blue' },
+  arrow_sign: { name: 'signage_arrow_stand', color: 'blue' },
+  saw_trap: { name: 'saw_trap', color: 'red' },
+  saw_trap_double: { name: 'saw_trap_double', color: 'red' },
+  saw_trap_long: { name: 'saw_trap_long', color: 'red' },
 };
+
+// Color variants available
+const THEME_COLORS = ['red', 'blue', 'green', 'yellow'];
 
 let assetsReady = false;
 async function preloadAssets() {
   const promises = Object.values(ASSET_MAP).map(a => loadAsset(a.name, a.color));
+  // Preload color variants of key assets
+  const colorAssets = ['swiper_double', 'swiper', 'barrier_4x1x4', 'barrier_2x1x2', 'hammer_spikes', 'cone', 'arch', 'flag_A', 'chest', 'heart', 'hoop', 'spikeblock_double_horizontal', 'signage_arrow_stand', 'saw_trap', 'saw_trap_double', 'saw_trap_long'];
+  THEME_COLORS.forEach(c => colorAssets.forEach(n => promises.push(loadAsset(n, c))));
   await Promise.all(promises);
   assetsReady = true;
   rebuildMeshes();
@@ -395,8 +443,11 @@ function createTextSprite(text, color = 0xffffff, scale = 0.6) {
   return sprite;
 }
 
+let animatedObjects = [];
+
 function rebuildMeshes() {
   clearMeshes();
+  animatedObjects = [];
   // Clear markers
   while (markerGroup.children.length > 0) markerGroup.remove(markerGroup.children[0]);
 
@@ -456,13 +507,24 @@ function rebuildMeshes() {
     const m = buildElementMesh(el, i === selectedIdx);
     if (m) { m.userData.elIdx = i; meshGroup.add(m); }
   });
+  // Collect animated objects
+  animatedObjects = [];
+  meshGroup.children.forEach(group => {
+    if (group.userData.anim) {
+      animatedObjects.push(group);
+    }
+    group.children.forEach(child => {
+      if (child.userData.anim) animatedObjects.push(child);
+    });
+  });
   updateSelectionBox();
 }
 
-function getAssetClone(type) {
+function getAssetClone(type, colorOverride) {
   const info = ASSET_MAP[type];
   if (!info) return null;
-  const cached = assetCache[`${info.color}/${info.name}`];
+  const color = colorOverride || info.color;
+  const cached = assetCache[`${color}/${info.name}`];
   if (!cached) return null;
   return cloneAsset(cached);
 }
@@ -480,6 +542,13 @@ function fitAsset(asset, targetW, targetH, targetD, cx, cy, cz) {
   return asset;
 }
 
+function applyElRotation(obj, el) {
+  const deg = Math.PI / 180;
+  if (el.rotX) obj.rotation.x = el.rotX * deg;
+  if (el.rotY) obj.rotation.y = el.rotY * deg;
+  if (el.rotZ) obj.rotation.z = el.rotZ * deg;
+}
+
 function buildElementMesh(el, selected) {
   const col = selected ? COLORS.selected : COLORS[el.t] || 0xcccccc;
   const group = new THREE.Group();
@@ -491,7 +560,7 @@ function buildElementMesh(el, selected) {
     const wallW = 0.6, wallD = 3;
 
     const addWallSection = (yC, h) => {
-      const asset = getAssetClone('wall');
+      const asset = getAssetClone('wall', el.color);
       if (fitAsset(asset, wallW, h, wallD, el.x, yC, 0)) {
         if (selected) tintModel(asset, COLORS.selected);
         group.add(asset);
@@ -505,34 +574,36 @@ function buildElementMesh(el, selected) {
     if (botH > 0) addWallSection(Y_MIN + botH / 2, botH);
   }
   else if (el.t === 'spinner') {
+    const swiperColor = el.color || 'red';
+    const scale = (el.len * 2) / 5.5;
+
+    // Rotating arms pivot
     const pivot = new THREE.Group();
     pivot.position.set(el.x, el.y, 0);
-    const barGeo = new THREE.CylinderGeometry(0.12, 0.12, el.len * 2, 8);
-    barGeo.rotateZ(Math.PI / 2);
-    pivot.add(new THREE.Mesh(barGeo, mat(col)));
-
-    const hub = getAssetClone('spinner');
-    if (fitAsset(hub, 0.5, 0.5, 0.5, 0, 0, 0)) {
-      if (selected) tintModel(hub, COLORS.selected);
-      pivot.add(hub);
+    const asset = getAssetClone('spinner', swiperColor);
+    if (asset) {
+      const center = new THREE.Group();
+      asset.scale.setScalar(scale);
+      asset.position.set(0, -0.75 * scale, 0);
+      center.add(asset);
+      // Tilt so post points toward camera, arms stay in XY plane
+      center.rotation.x = Math.PI / 2;
+      if (selected) tintModel(center, COLORS.selected);
+      pivot.add(center);
     } else {
-      pivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(0xffffff)));
-    }
-
-    [-1, 1].forEach(s => {
-      const tip = getAssetClone('spinner');
-      if (fitAsset(tip, 0.4, 0.4, 0.4, s * el.len, 0, 0)) {
-        if (selected) tintModel(tip, COLORS.selected);
-        pivot.add(tip);
-      } else {
+      const barGeo = new THREE.CylinderGeometry(0.12, 0.12, el.len * 2, 8);
+      barGeo.rotateZ(Math.PI / 2);
+      pivot.add(new THREE.Mesh(barGeo, mat(col)));
+      [-1, 1].forEach(s => {
         const t = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 10), mat(col));
         t.position.set(s * el.len, 0, 0); pivot.add(t);
-      }
-    });
+      });
+    }
+    pivot.userData.anim = { type: 'spinner', spd: el.spd, angle: 0 };
     group.add(pivot);
   }
   else if (el.t === 'mover') {
-    const asset = getAssetClone('mover');
+    const asset = getAssetClone('mover', el.color);
     if (fitAsset(asset, el.w, el.h, 3, el.x, el.y, 0)) {
       if (selected) tintModel(asset, COLORS.selected);
       group.add(asset);
@@ -540,6 +611,7 @@ function buildElementMesh(el, selected) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(el.w, el.h, 3), mat(col));
       m.position.set(el.x, el.y, 0); m.castShadow = true; group.add(m);
     }
+    group.userData.anim = { type: 'mover', baseY: el.y, range: el.range, spd: el.spd || 1, time: 0, mesh: group.children[0] };
     const arrow = new THREE.LineSegments(
       new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(el.x, el.y - el.range, 0.5),
@@ -558,6 +630,7 @@ function buildElementMesh(el, selected) {
       const m = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), mat(col, 0x332200));
       m.position.set(el.x, el.y, 0); group.add(m);
     }
+    group.userData.anim = { type: 'bobspin', baseY: el.y, x: el.x, time: 0 };
   }
   else if (el.t === 'star') {
     const asset = getAssetClone('star');
@@ -568,6 +641,7 @@ function buildElementMesh(el, selected) {
       const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 6, 6), mat(col, 0x442200));
       m.position.set(el.x, el.y, 0); group.add(m);
     }
+    group.userData.anim = { type: 'bobspin', baseY: el.y, x: el.x, time: 0 };
   }
   else if (el.t === 'finish') {
     const asset = getAssetClone('finish');
@@ -613,6 +687,8 @@ function buildElementMesh(el, selected) {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(0.6 * sz, 0.6 * sz, 0.1, 16), mat(col));
       m.position.set(el.x, el.y, 0); group.add(m);
     }
+
+    group.userData.anim = { type: 'sawblade', baseY: el.y, range: el.range || 0, spd: el.spd || 2, time: 0 };
     if (el.range) {
       const arrow = new THREE.LineSegments(
         new THREE.BufferGeometry().setFromPoints([
@@ -634,6 +710,8 @@ function buildElementMesh(el, selected) {
       const m = new THREE.Mesh(new THREE.SphereGeometry(0.4 * sz, 8, 8), mat(col));
       m.position.set(el.x, el.y, 0); group.add(m);
     }
+
+    group.userData.anim = { type: 'spikeball', baseY: el.y, range: el.range || 0, spd: el.spd || 1.5, time: 0 };
     if (el.range) {
       const arrow = new THREE.LineSegments(
         new THREE.BufferGeometry().setFromPoints([
@@ -646,7 +724,7 @@ function buildElementMesh(el, selected) {
     }
   }
   else if (el.t === 'hammer') {
-    const asset = getAssetClone('hammer');
+    const asset = getAssetClone('hammer', el.color);
     const hamLen = el.len || 2;
     const sz = el.scale || 1;
     if (fitAsset(asset, 0.8 * sz, hamLen * sz, 0.8 * sz, el.x, el.y, 0)) {
@@ -656,6 +734,230 @@ function buildElementMesh(el, selected) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.6 * sz, hamLen, 0.6 * sz), mat(col));
       m.position.set(el.x, el.y, 0); group.add(m);
     }
+
+    group.userData.anim = { type: 'hammer', spd: el.spd || 2, time: 0 };
+  }
+  else if (el.t === 'hoop') {
+    const asset = getAssetClone('hoop', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 2 * sz, 2 * sz, 0.5 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.TorusGeometry(0.8 * sz, 0.1, 8, 24), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+    if (el.anim) group.userData.anim = { type: 'bobspin', baseY: el.y, x: el.x, time: 0 };
+  }
+  else if (el.t === 'bomb') {
+    const asset = getAssetClone('bomb', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 0.8 * sz, 0.8 * sz, 0.8 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.4 * sz, 12, 12), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+  }
+  else if (el.t === 'spikeroller') {
+    const asset = getAssetClone('spikeroller');
+    const sz = el.scale || 1;
+    // Wrapper so user rotation (on wrapper) doesn't conflict with spin animation (on asset)
+    const wrapper = new THREE.Group();
+    wrapper.position.set(el.x, el.y, 0);
+    if (fitAsset(asset, 2 * sz, 0.6 * sz, 0.6 * sz, 0, 0, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      wrapper.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * sz, 0.3 * sz, 2 * sz, 12), mat(col));
+      m.rotation.z = Math.PI / 2;
+      wrapper.add(m);
+    }
+    // Apply user rotation on the wrapper, animation spins the inner asset
+    if (el.rotX || el.rotY || el.rotZ) {
+      const deg = Math.PI / 180;
+      if (el.rotX) wrapper.rotation.x = el.rotX * deg;
+      if (el.rotY) wrapper.rotation.y = el.rotY * deg;
+      if (el.rotZ) wrapper.rotation.z = el.rotZ * deg;
+    }
+    group.add(wrapper);
+    group.userData.anim = { type: 'spikeroller', baseY: el.y, range: el.range || 0, spd: el.spd || 2, time: 0 };
+    group.userData.skipElRotation = true;
+    if (el.range) {
+      const arrow = new THREE.LineSegments(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(el.x, el.y - el.range, 0.5),
+          new THREE.Vector3(el.x, el.y + el.range, 0.5),
+        ]),
+        new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 })
+      );
+      group.add(arrow);
+    }
+  }
+  else if (el.t === 'cone') {
+    const asset = getAssetClone('cone', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 0.6 * sz, 0.8 * sz, 0.6 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.ConeGeometry(0.3 * sz, 0.8 * sz, 8), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+  }
+  else if (el.t === 'chest') {
+    const asset = getAssetClone('chest', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 0.8 * sz, 0.6 * sz, 0.6 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.8 * sz, 0.6 * sz, 0.6 * sz), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+    group.userData.anim = { type: 'bobspin', baseY: el.y, x: el.x, time: 0 };
+  }
+  else if (el.t === 'heart') {
+    const asset = getAssetClone('heart');
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 0.6 * sz, 0.6 * sz, 0.6 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.3 * sz, 12, 12), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+    group.userData.anim = { type: 'bobspin', baseY: el.y, x: el.x, time: 0 };
+  }
+  else if (el.t === 'arch') {
+    const asset = getAssetClone('arch', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 3 * sz, 4 * sz, 1, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    }
+  }
+  else if (el.t === 'flag') {
+    const asset = getAssetClone('flag', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 0.5 * sz, 2 * sz, 0.5 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    }
+  }
+  else if (el.t === 'spikewall') {
+    const asset = getAssetClone('spikewall', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 2 * sz, 1 * sz, 1 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(2 * sz, 1 * sz, 1 * sz), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+    if (el.rangeX || el.rangeY) {
+      group.userData.anim = { type: 'spikewall', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 1, time: 0 };
+      const pts = [];
+      if (el.rangeX) { pts.push(new THREE.Vector3(el.x - el.rangeX, el.y, 0.5), new THREE.Vector3(el.x + el.rangeX, el.y, 0.5)); }
+      if (el.rangeY) { pts.push(new THREE.Vector3(el.x, el.y - el.rangeY, 0.5), new THREE.Vector3(el.x, el.y + el.rangeY, 0.5)); }
+      group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 })));
+    }
+  }
+  else if (el.t === 'saw_trap') {
+    const asset = getAssetClone('saw_trap', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 1.5 * sz, 1.5 * sz, 1.5 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * sz, 0.5 * sz, 0.15, 16), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+    group.userData.anim = { type: 'saw_trap', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, time: 0 };
+    const pts = [];
+    if (el.rangeX) { pts.push(new THREE.Vector3(el.x - el.rangeX, el.y, 0.5), new THREE.Vector3(el.x + el.rangeX, el.y, 0.5)); }
+    if (el.rangeY) { pts.push(new THREE.Vector3(el.x, el.y - el.rangeY, 0.5), new THREE.Vector3(el.x, el.y + el.rangeY, 0.5)); }
+    if (pts.length) group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 })));
+  }
+  else if (el.t === 'saw_trap_double') {
+    const asset = getAssetClone('saw_trap_double', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 2 * sz, 1.5 * sz, 1.5 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(2 * sz, 0.8 * sz, 0.8 * sz), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+    group.userData.anim = { type: 'saw_trap', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, time: 0 };
+    const pts = [];
+    if (el.rangeX) { pts.push(new THREE.Vector3(el.x - el.rangeX, el.y, 0.5), new THREE.Vector3(el.x + el.rangeX, el.y, 0.5)); }
+    if (el.rangeY) { pts.push(new THREE.Vector3(el.x, el.y - el.rangeY, 0.5), new THREE.Vector3(el.x, el.y + el.rangeY, 0.5)); }
+    if (pts.length) group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 })));
+  }
+  else if (el.t === 'saw_trap_long') {
+    const asset = getAssetClone('saw_trap_long', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 3 * sz, 1.5 * sz, 1.5 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(3 * sz, 0.8 * sz, 0.8 * sz), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+    group.userData.anim = { type: 'saw_trap', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, time: 0 };
+    const pts = [];
+    if (el.rangeX) { pts.push(new THREE.Vector3(el.x - el.rangeX, el.y, 0.5), new THREE.Vector3(el.x + el.rangeX, el.y, 0.5)); }
+    if (el.rangeY) { pts.push(new THREE.Vector3(el.x, el.y - el.rangeY, 0.5), new THREE.Vector3(el.x, el.y + el.rangeY, 0.5)); }
+    if (pts.length) group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 })));
+  }
+  else if (el.t === 'arrow_sign') {
+    const asset = getAssetClone('arrow_sign', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 1 * sz, 2 * sz, 0.5 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    }
+  }
+  else if (el.t === 'spinner_single') {
+    const swiperColor = el.color || 'blue';
+    const scale = (el.len * 2) / 3.12;
+    const pivot = new THREE.Group();
+    pivot.position.set(el.x, el.y, 0);
+    const asset = getAssetClone('spinner_single', swiperColor);
+    if (asset) {
+      const center = new THREE.Group();
+      asset.scale.setScalar(scale);
+      asset.position.set(0, -0.75 * scale, 0);
+      center.add(asset);
+      center.rotation.x = Math.PI / 2;
+      if (selected) tintModel(center, COLORS.selected);
+      pivot.add(center);
+    } else {
+      const barGeo = new THREE.CylinderGeometry(0.12, 0.12, el.len, 8);
+      barGeo.rotateZ(Math.PI / 2);
+      pivot.add(new THREE.Mesh(barGeo, mat(col)));
+    }
+    pivot.userData.anim = { type: 'spinner', spd: el.spd, angle: 0 };
+    group.add(pivot);
+  }
+  else if (el.t === 'crate') {
+    const asset = getAssetClone('crate');
+    const sz = el.scale || 1;
+    if (fitAsset(asset, sz, sz, sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+  }
+
+  // Apply rotation to first child (the main asset) for all types
+  // Skip types that handle rotation themselves (e.g. spikeroller uses wrapper)
+  if (group.children[0] && (el.rotX || el.rotY || el.rotZ) && !group.userData.skipElRotation) {
+    applyElRotation(group.children[0], el);
   }
 
   return group;
@@ -726,6 +1028,21 @@ function defaultEl(type, x, y) {
     case 'sawblade': return { t: 'sawblade', x, y, range: 0, spd: 2, scale: 1 };
     case 'spikeball': return { t: 'spikeball', x, y, range: 0, spd: 1.5, scale: 1 };
     case 'hammer': return { t: 'hammer', x, y, len: 2, spd: 2, scale: 1 };
+    case 'hoop': return { t: 'hoop', x, y, scale: 1 };
+    case 'bomb': return { t: 'bomb', x, y, scale: 1 };
+    case 'spikeroller': return { t: 'spikeroller', x, y, range: 0, spd: 2, scale: 1 };
+    case 'cone': return { t: 'cone', x, y, scale: 1 };
+    case 'chest': return { t: 'chest', x, y, scale: 1 };
+    case 'heart': return { t: 'heart', x, y, scale: 1 };
+    case 'arch': return { t: 'arch', x, y: 0, scale: 1 };
+    case 'flag': return { t: 'flag', x, y, scale: 1 };
+    case 'crate': return { t: 'crate', x, y, scale: 1 };
+    case 'spinner_single': return { t: 'spinner_single', x, y, len: 2.5, spd: 2, scale: 1 };
+    case 'spikewall': return { t: 'spikewall', x, y, scale: 1, rangeX: 0, rangeY: 0, spd: 1 };
+    case 'arrow_sign': return { t: 'arrow_sign', x, y, scale: 1 };
+    case 'saw_trap': return { t: 'saw_trap', x, y, rangeX: 0, rangeY: 0, spd: 2, scale: 1 };
+    case 'saw_trap_double': return { t: 'saw_trap_double', x, y, rangeX: 0, rangeY: 0, spd: 2, scale: 1 };
+    case 'saw_trap_long': return { t: 'saw_trap_long', x, y, rangeX: 0, rangeY: 0, spd: 2, scale: 1 };
   }
 }
 
@@ -761,21 +1078,113 @@ function updateProps() {
   f('X', 'x');
   if (el.t === 'wall') { f('Gap Y', 'gapY', 0.5, -4, 4); f('Gap H', 'gapH', 0.5, 1, 8); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'spinner') { f('Y', 'y'); f('Length', 'len', 0.5, 0.5, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'spinner_single') { f('Y', 'y'); f('Length', 'len', 0.5, 0.5, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'mover') { f('Y', 'y'); f('W', 'w', 0.2); f('H', 'h', 0.5); f('Range', 'range', 0.5); f('Speed', 'spd', 0.5); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'coin' || el.t === 'star') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'cannon') { f('Y', 'y'); }
   else if (el.t === 'sawblade') { f('Y', 'y'); f('Range', 'range', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'spikeball') { f('Y', 'y'); f('Range', 'range', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'hammer') { f('Y', 'y'); f('Length', 'len', 0.5, 1, 4); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'hoop') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); h += `<div class="prop-row"><label>Animate</label><input type="checkbox" ${el.anim ? 'checked' : ''} data-key="anim"></div>`; }
+  else if (el.t === 'bomb') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'spikeroller') { f('Y', 'y'); f('Range', 'range', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'cone' || el.t === 'flag') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'chest' || el.t === 'heart') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'arch') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'crate') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'spikewall') { f('Y', 'y'); f('Range X', 'rangeX', 0.5, 0, 10); f('Range Y', 'rangeY', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'arrow_sign') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'saw_trap' || el.t === 'saw_trap_double' || el.t === 'saw_trap_long') { f('Y', 'y'); f('Range X', 'rangeX', 0.5, 0, 10); f('Range Y', 'rangeY', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
+
+  // Rotation controls for 3D asset types
+  const rotTypes = ['spinner', 'spinner_single', 'sawblade', 'spikeball', 'hammer', 'wall', 'mover', 'cannon', 'hoop', 'bomb', 'spikeroller', 'cone', 'arch', 'flag', 'chest', 'heart', 'crate', 'spikewall', 'arrow_sign', 'saw_trap', 'saw_trap_double', 'saw_trap_long'];
+  if (rotTypes.includes(el.t)) {
+    h += `<div style="margin-top:6px; border-top:1px solid #333; padding-top:6px;">`;
+    h += `<div style="color:#aaa; font-size:10px; margin-bottom:4px;">Facing Direction</div>`;
+    h += `<div style="display:flex; flex-wrap:wrap; gap:3px; margin-bottom:6px;">`;
+    h += `<button data-facing="front" style="flex:1; min-width:45px; padding:3px 4px; font-size:9px; background:#333; color:#ccc; border:1px solid #555; border-radius:3px; cursor:pointer;">Front</button>`;
+    h += `<button data-facing="right" style="flex:1; min-width:45px; padding:3px 4px; font-size:9px; background:#333; color:#ccc; border:1px solid #555; border-radius:3px; cursor:pointer;">Right</button>`;
+    h += `<button data-facing="left" style="flex:1; min-width:45px; padding:3px 4px; font-size:9px; background:#333; color:#ccc; border:1px solid #555; border-radius:3px; cursor:pointer;">Left</button>`;
+    h += `<button data-facing="back" style="flex:1; min-width:45px; padding:3px 4px; font-size:9px; background:#333; color:#ccc; border:1px solid #555; border-radius:3px; cursor:pointer;">Back</button>`;
+    h += `<button data-facing="flat" style="flex:1; min-width:45px; padding:3px 4px; font-size:9px; background:#333; color:#ccc; border:1px solid #555; border-radius:3px; cursor:pointer;">Flat</button>`;
+    h += `<button data-facing="up" style="flex:1; min-width:45px; padding:3px 4px; font-size:9px; background:#333; color:#ccc; border:1px solid #555; border-radius:3px; cursor:pointer;">Up</button>`;
+    h += `</div>`;
+    h += `<div style="color:#aaa; font-size:10px; margin-bottom:4px;">Fine Rotation</div>`;
+    ['rotX', 'rotY', 'rotZ'].forEach(key => {
+      const label = key.slice(3);
+      const val = (el[key] || 0);
+      h += `<div class="prop-row"><label>Rot ${label}</label><input type="range" min="-180" max="180" step="5" value="${val}" data-key="${key}" style="flex:1;"><span data-disp="${key}" style="width:30px; text-align:right; font-size:10px;">${val}°</span></div>`;
+    });
+    h += `</div>`;
+  }
+
+  // Color selector for types that support color variants
+  const colorTypes = ['wall', 'spinner', 'spinner_single', 'mover', 'hammer', 'hoop', 'bomb', 'cone', 'chest', 'arch', 'flag', 'spikewall', 'arrow_sign', 'saw_trap', 'saw_trap_double', 'saw_trap_long'];
+  if (colorTypes.includes(el.t)) {
+    const colorMap = { red: '#E53935', blue: '#1E88E5', green: '#43A047', yellow: '#FDD835' };
+    h += `<div class="prop-row" style="margin-top:6px;"><label>Color</label><div style="display:flex; gap:4px;">`;
+    THEME_COLORS.forEach(clr => {
+      const active = (el.color || ASSET_MAP[el.t === 'spinner' ? 'spinner' : el.t]?.color || 'red') === clr;
+      h += `<button data-color="${clr}" style="width:24px; height:24px; border-radius:4px; border:2px solid ${active ? '#fff' : '#333'}; background:${colorMap[clr]}; cursor:pointer;"></button>`;
+    });
+    h += `</div></div>`;
+  }
 
   h += `<button class="tb red" style="width:100%; margin-top:8px;" onclick="window._deleteSelected()">Delete</button>`;
   c.innerHTML = h;
 
-  c.querySelectorAll('input').forEach(inp => {
+  c.querySelectorAll('input[type="number"]').forEach(inp => {
     inp.addEventListener('change', () => {
       saveUndo();
       els()[selectedIdx][inp.dataset.key] = parseFloat(inp.value);
       rebuildMeshes();
+    });
+  });
+
+  // Rotation sliders — live update on input, save on change
+  c.querySelectorAll('input[type="range"]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      els()[selectedIdx][inp.dataset.key] = parseFloat(inp.value);
+      const disp = c.querySelector(`[data-disp="${inp.dataset.key}"]`);
+      if (disp) disp.textContent = inp.value + '°';
+      rebuildMeshes();
+    });
+    inp.addEventListener('mousedown', () => saveUndo(), { once: false });
+  });
+
+  // Checkbox handlers
+  c.querySelectorAll('input[type="checkbox"]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      saveUndo();
+      els()[selectedIdx][inp.dataset.key] = inp.checked;
+      rebuildMeshes();
+    });
+  });
+
+  // Color button handlers
+  c.querySelectorAll('[data-color]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      saveUndo();
+      els()[selectedIdx].color = btn.dataset.color;
+      rebuildMeshes();
+      updateProps();
+    });
+  });
+
+  // Facing direction button handlers
+  c.querySelectorAll('[data-facing]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      saveUndo();
+      const el = els()[selectedIdx];
+      const facing = btn.dataset.facing;
+      if (facing === 'front') { el.rotX = 0; el.rotY = 0; el.rotZ = 0; }
+      else if (facing === 'right') { el.rotX = 0; el.rotY = 90; el.rotZ = 0; }
+      else if (facing === 'left') { el.rotX = 0; el.rotY = -90; el.rotZ = 0; }
+      else if (facing === 'back') { el.rotX = 0; el.rotY = 180; el.rotZ = 0; }
+      else if (facing === 'flat') { el.rotX = 90; el.rotY = 0; el.rotZ = 0; }
+      else if (facing === 'up') { el.rotX = -90; el.rotY = 0; el.rotZ = 0; }
+      rebuildMeshes();
+      updateProps();
     });
   });
 }
@@ -837,6 +1246,13 @@ renderer.domElement.addEventListener('mousemove', (e) => {
 
 renderer.domElement.addEventListener('mouseup', () => { dragging = false; });
 
+let clipboard = null;
+let lastMouseWorld = { x: 0, y: 0 };
+renderer.domElement.addEventListener('mousemove', (e) => {
+  const pos = getWorldPos(e);
+  if (pos) lastMouseWorld = pos;
+});
+
 // Keyboard
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -845,8 +1261,11 @@ window.addEventListener('keydown', (e) => {
   const key = e.code;
   if (key === 'Delete' || key === 'Backspace') { e.preventDefault(); window._deleteSelected(); }
   if (key === 'KeyZ' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); undo(); }
-  if (key === 'KeyD' && selectedIdx >= 0) { e.preventDefault(); saveUndo(); const c = JSON.parse(JSON.stringify(els()[selectedIdx])); c.x += 2; els().push(c); selectedIdx = els().length - 1; rebuildMeshes(); updateProps(); }
+  if (key === 'KeyD' && selectedIdx >= 0 && !e.metaKey && !e.ctrlKey) { e.preventDefault(); saveUndo(); const c = JSON.parse(JSON.stringify(els()[selectedIdx])); c.x += 2; els().push(c); selectedIdx = els().length - 1; rebuildMeshes(); updateProps(); }
+  if (key === 'KeyC' && (e.metaKey || e.ctrlKey) && selectedIdx >= 0) { e.preventDefault(); clipboard = JSON.parse(JSON.stringify(els()[selectedIdx])); document.getElementById('info').textContent = `Copied ${clipboard.t}`; }
+  if (key === 'KeyV' && (e.metaKey || e.ctrlKey) && clipboard) { e.preventDefault(); saveUndo(); const c = JSON.parse(JSON.stringify(clipboard)); c.x = snapVal(lastMouseWorld.x); if ('y' in c) c.y = snapVal(lastMouseWorld.y); if ('gapY' in c) c.gapY = snapVal(lastMouseWorld.y); els().push(c); selectedIdx = els().length - 1; rebuildMeshes(); updateProps(); document.getElementById('info').textContent = `Pasted ${c.t} at X:${c.x.toFixed(1)}`; }
   if (key === 'Escape') { if (playing) stopPlay(); else { selectedIdx = -1; rebuildMeshes(); updateProps(); } }
+  if (key === 'KeyP') { animPaused = !animPaused; document.getElementById('btn-pause-anim').textContent = animPaused ? '▶ Resume' : '⏸ Pause'; }
 
   // Tool shortcuts
   if (key === 'KeyS') setTool('select');
@@ -1005,11 +1424,9 @@ function updatePlay(dt) {
   s.y += (playHolding ? speed : -speed) * dt;
   s.x += speed * dt;
 
-  // Boundary death
-  if (s.y < -5.5 || s.y > 5.5) {
-    s.alive = false; s.deathTimer = 0;
-    return;
-  }
+  // Clamp to ceiling/floor (safe boundaries)
+  if (s.y > Y_MAX) s.y = Y_MAX;
+  if (s.y < Y_MIN) s.y = Y_MIN;
 
   // Collision detection
   const pr = PLAYER_RADIUS * 0.8;
@@ -1050,7 +1467,26 @@ function updatePlay(dt) {
       const sy = el.range ? el.y + Math.sin(s.time * el.spd) * el.range : el.y;
       const dx = s.x - el.x;
       const dy = s.y - sy;
-      if (Math.sqrt(dx * dx + dy * dy) < pr + 0.55) {
+      if (Math.sqrt(dx * dx + dy * dy) < pr + 0.55 * (el.scale || 1)) {
+        s.alive = false; s.deathTimer = 0; return;
+      }
+    }
+    if (el.t === 'saw_trap' || el.t === 'saw_trap_double' || el.t === 'saw_trap_long') {
+      const osc = Math.sin(s.time * (el.spd || 2));
+      const cx = el.x + (el.rangeX ? osc * el.rangeX : 0);
+      const cy = el.y + (el.rangeY ? osc * el.rangeY : 0);
+      const r = el.t === 'saw_trap_long' ? 1.0 : el.t === 'saw_trap_double' ? 0.7 : 0.55;
+      const dx = s.x - cx, dy = s.y - cy;
+      if (Math.sqrt(dx * dx + dy * dy) < pr + r * (el.scale || 1)) {
+        s.alive = false; s.deathTimer = 0; return;
+      }
+    }
+    if (el.t === 'spikewall') {
+      const sz = el.scale || 1;
+      const osc = Math.sin(s.time * (el.spd || 1));
+      const cx = el.x + (el.rangeX ? osc * el.rangeX : 0);
+      const cy = el.y + (el.rangeY ? osc * el.rangeY : 0);
+      if (Math.abs(s.x - cx) < pr + 1 * sz && Math.abs(s.y - cy) < pr + 0.5 * sz) {
         s.alive = false; s.deathTimer = 0; return;
       }
     }
@@ -1190,6 +1626,10 @@ document.getElementById('btn-do-import').addEventListener('click', () => {
 document.getElementById('btn-undo').addEventListener('click', undo);
 document.getElementById('btn-delete').addEventListener('click', () => window._deleteSelected());
 document.getElementById('chk-snap').addEventListener('change', (e) => { snap = e.target.checked; });
+document.getElementById('btn-pause-anim').addEventListener('click', () => {
+  animPaused = !animPaused;
+  document.getElementById('btn-pause-anim').textContent = animPaused ? '▶ Resume' : '⏸ Pause';
+});
 
 // ═══════════════════════════════════
 //  LOAD GAME LEVELS
@@ -1465,6 +1905,76 @@ function animate(now) {
   }
 
   if (!playing) controls.update();
+
+  // Animate obstacles always (edit + play), unless paused
+  if (!animPaused) {
+    animatedObjects.forEach(obj => {
+      const a = obj.userData.anim;
+      if (!a) return;
+      a.time = (a.time || 0) + dt;
+      if (a.type === 'spinner') {
+        a.angle = (a.angle || 0) + a.spd * dt;
+        obj.rotation.z = a.angle;
+      } else if (a.type === 'mover' && a.mesh) {
+        a.mesh.position.y = a.baseY + Math.sin(a.time * a.spd) * a.range;
+      } else if (a.type === 'sawblade') {
+        obj.children[0] && (obj.children[0].rotation.y += dt * 8);
+        if (a.range > 0) {
+          const newY = a.baseY + Math.sin(a.time * a.spd) * a.range;
+          obj.children.forEach(c => { if (c.position) c.position.y = newY; });
+        }
+      } else if (a.type === 'spikeball') {
+        if (a.range > 0) {
+          const newY = a.baseY + Math.sin(a.time * a.spd) * a.range;
+          obj.children.forEach(c => { if (c.position) c.position.y = newY; });
+        }
+      } else if (a.type === 'hammer') {
+        const cycle = (a.time * a.spd) % (Math.PI * 2);
+        obj.children[0] && (obj.children[0].rotation.z = Math.sin(cycle) * 1.2);
+      } else if (a.type === 'spikeroller') {
+        // Wrapper is obj.children[0], asset is inside wrapper
+        const wrapper = obj.children[0];
+        if (wrapper && wrapper.children[0]) wrapper.children[0].rotation.x += dt * 4;
+        if (a.range > 0) {
+          const newY = a.baseY + Math.sin(a.time * a.spd) * a.range;
+          if (wrapper) wrapper.position.y = newY;
+        }
+      } else if (a.type === 'spikewall') {
+        const dx = a.rangeX ? Math.sin(a.time * a.spd) * a.rangeX : 0;
+        const dy = a.rangeY ? Math.sin(a.time * a.spd) * a.rangeY : 0;
+        obj.children.forEach(c => {
+          if (c.position && !c.isLineSegments) {
+            c.position.x = a.baseX + dx;
+            c.position.y = a.baseY + dy;
+          }
+        });
+      } else if (a.type === 'saw_trap') {
+        // Only spin sawblade children, keep frame static
+        const asset = obj.children[0];
+        if (asset) {
+          asset.traverse(child => {
+            if (child.name && child.name.includes('sawblade')) {
+              child.rotation.y += dt * a.spd * 4;
+            }
+          });
+        }
+        // Move whole group if range set
+        const dx = a.rangeX ? Math.sin(a.time * a.spd) * a.rangeX : 0;
+        const dy = a.rangeY ? Math.sin(a.time * a.spd) * a.rangeY : 0;
+        if (dx || dy) {
+          obj.children.forEach(c => {
+            if (c.position && !c.isLineSegments) {
+              c.position.x = a.baseX + dx;
+              c.position.y = a.baseY + dy;
+            }
+          });
+        }
+      } else if (a.type === 'bobspin') {
+        obj.children[0] && (obj.children[0].rotation.y += dt * 2);
+        if (obj.children[0]) obj.children[0].position.y = a.baseY + Math.sin(a.time * 3 + a.x) * 0.1;
+      }
+    });
+  }
 
   // Resize check
   const w = viewport.clientWidth, h = viewport.clientHeight;
