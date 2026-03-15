@@ -133,6 +133,9 @@
     <button class="tool-btn" data-tool="saw_trap"><div class="tool-icon" style="background:#C44">⚙</div>Saw Trap</button>
     <button class="tool-btn" data-tool="saw_trap_double"><div class="tool-icon" style="background:#C44">⚙⚙</div>Saw Trap x2</button>
     <button class="tool-btn" data-tool="saw_trap_long"><div class="tool-icon" style="background:#C44">⚙─</div>Saw Trap Long</button>
+    <button class="tool-btn" data-tool="pendulum"><div class="tool-icon" style="background:#666">⛓</div>Pendulum</button>
+    <button class="tool-btn" data-tool="pipe_straight"><div class="tool-icon" style="background:#4CAF50">║</div>Pipe</button>
+    <button class="tool-btn" data-tool="pipe_end"><div class="tool-icon" style="background:#4CAF50">╥</div>Pipe End</button>
   </div>
   <div class="section">
     <div class="section-title">Bonus</div>
@@ -207,7 +210,7 @@ const COLORS = {
   bomb: 0x333333, spikeroller: 0x666666, hoop: 0x2196F3,
   chest: 0x8B4513, heart: 0xFF1744, cone: 0xFF6600, arch: 0x42A5F5, flag: 0xE53935, crate: 0x8B6914,
   spikewall: 0x4444aa, arrow_sign: 0x42A5F5,
-  saw_trap: 0xCC4444, saw_trap_double: 0xCC4444, saw_trap_long: 0xCC4444,
+  saw_trap: 0xCC4444, saw_trap_double: 0xCC4444, saw_trap_long: 0xCC4444, pendulum: 0x666666, pipe_straight: 0x4CAF50, pipe_end: 0x4CAF50,
   ground: [0x81C784, 0xFFCC80, 0xB39DDB],
   selected: 0xFF6B8A,
 };
@@ -385,6 +388,11 @@ const ASSET_MAP = {
   saw_trap: { name: 'saw_trap', color: 'red' },
   saw_trap_double: { name: 'saw_trap_double', color: 'red' },
   saw_trap_long: { name: 'saw_trap_long', color: 'red' },
+  pipe_straight: { name: 'pipe_straight_A', color: 'green' },
+  pipe_end: { name: 'pipe_end', color: 'green' },
+  pendulum_top: { name: 'chain_link_end_top', color: 'neutral' },
+  pendulum_link: { name: 'chain_link', color: 'neutral' },
+  pendulum_ball: { name: 'spikeball_hanger', color: 'neutral' },
 };
 
 // Color variants available
@@ -394,7 +402,7 @@ let assetsReady = false;
 async function preloadAssets() {
   const promises = Object.values(ASSET_MAP).map(a => loadAsset(a.name, a.color));
   // Preload color variants of key assets
-  const colorAssets = ['swiper_double', 'swiper', 'barrier_4x1x4', 'barrier_2x1x2', 'hammer_spikes', 'cone', 'arch', 'flag_A', 'chest', 'heart', 'hoop', 'spikeblock_double_horizontal', 'signage_arrow_stand', 'saw_trap', 'saw_trap_double', 'saw_trap_long'];
+  const colorAssets = ['swiper_double', 'swiper', 'barrier_4x1x4', 'barrier_2x1x2', 'hammer_spikes', 'cone', 'arch', 'flag_A', 'chest', 'heart', 'hoop', 'spikeblock_double_horizontal', 'signage_arrow_stand', 'saw_trap', 'saw_trap_double', 'saw_trap_long', 'pipe_straight_A', 'pipe_end'];
   THEME_COLORS.forEach(c => colorAssets.forEach(n => promises.push(loadAsset(n, c))));
   await Promise.all(promises);
   assetsReady = true;
@@ -557,7 +565,7 @@ function buildElementMesh(el, selected) {
     const halfGap = el.gapH / 2;
     const topH = Y_MAX - (el.gapY + halfGap);
     const botH = (el.gapY - halfGap) - Y_MIN;
-    const wallW = 0.6, wallD = 3;
+    const wallW = el.w || 0.6, wallD = 3;
 
     const addWallSection = (yC, h) => {
       const asset = getAssetClone('wall', el.color);
@@ -723,6 +731,51 @@ function buildElementMesh(el, selected) {
       group.add(arrow);
     }
   }
+  else if (el.t === 'pendulum') {
+    const sz = el.scale || 1;
+    const chainLen = el.len || 3;
+    const linkVisual = 0.55 * sz;
+    const linkSpace = 0.35 * sz;
+    const ballR = 0.7 * sz;
+    // Hook height for positioning pivot at hook bottom
+    const hookH = 0.4 * sz;
+    // Top mount stays fixed (not in pivot)
+    const topAsset = getAssetClone('pendulum_top');
+    if (fitAsset(topAsset, 0.25 * sz, hookH, 0.08 * sz, el.x, el.y - hookH * 0.5, 0)) {
+      topAsset.rotation.y = Math.PI / 2;
+      if (selected) tintModel(topAsset, COLORS.selected);
+      group.add(topAsset);
+    }
+    // Pivot at bottom of hook — chain swings from here
+    const pivotY = el.y - hookH;
+    const pivot = new THREE.Group();
+    pivot.position.set(el.x, pivotY, 0);
+    // Chain links hanging down - shift up so first link hooks onto mount
+    const chainUp = 0.15 * sz;
+    const numLinks = Math.max(1, Math.round(chainLen / linkSpace));
+    for (let i = 0; i < numLinks; i++) {
+      const link = getAssetClone('pendulum_link');
+      if (fitAsset(link, 0.25 * sz, linkVisual, 0.08 * sz, 0, chainUp - (i + 0.5) * linkSpace, 0)) {
+        if (selected) tintModel(link, COLORS.selected);
+        pivot.add(link);
+      }
+    }
+    // Spikeball at bottom
+    const ball = getAssetClone('pendulum_ball');
+    const chainBottom = chainUp - numLinks * linkSpace;
+    const ballSize = ballR * 1.4;
+    if (fitAsset(ball, ballSize, ballSize, ballSize, 0, chainBottom - ballSize * 0.3, 0)) {
+      if (selected) tintModel(ball, COLORS.selected);
+      pivot.add(ball);
+    } else {
+      const fb = new THREE.Mesh(new THREE.SphereGeometry(ballR * 0.5, 8, 8), mat(col));
+      fb.position.set(0, chainBottom - ballR * 0.5, 0); pivot.add(fb);
+    }
+    group.add(pivot);
+    const totalLen = numLinks * linkSpace + ballSize * 0.3;
+    group.userData.anim = { type: 'pendulum', spd: el.spd || 1.5, swing: el.swing || 0.8, totalLen, time: 0 };
+    group.userData.skipElRotation = true;
+  }
   else if (el.t === 'hammer') {
     const asset = getAssetClone('hammer', el.color);
     const hamLen = el.len || 2;
@@ -735,7 +788,7 @@ function buildElementMesh(el, selected) {
       m.position.set(el.x, el.y, 0); group.add(m);
     }
 
-    group.userData.anim = { type: 'hammer', spd: el.spd || 2, time: 0 };
+    group.userData.anim = { type: 'hammer', spd: el.spd || 2, swing: el.swing || 1.2, time: 0 };
   }
   else if (el.t === 'hoop') {
     const asset = getAssetClone('hoop', el.color);
@@ -867,14 +920,15 @@ function buildElementMesh(el, selected) {
   else if (el.t === 'saw_trap') {
     const asset = getAssetClone('saw_trap', el.color);
     const sz = el.scale || 1;
-    if (fitAsset(asset, 1.5 * sz, 1.5 * sz, 1.5 * sz, el.x, el.y, 0)) {
+    const w = el.w || 1;
+    if (fitAsset(asset, 1.5 * sz * w, 1.5 * sz, 1.5 * sz, el.x, el.y, 0)) {
       if (selected) tintModel(asset, COLORS.selected);
       group.add(asset);
     } else {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * sz, 0.5 * sz, 0.15, 16), mat(col));
       m.position.set(el.x, el.y, 0); group.add(m);
     }
-    group.userData.anim = { type: 'saw_trap', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, time: 0 };
+    group.userData.anim = { type: 'saw_trap', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, spin: el.spin || 0, time: 0 };
     const pts = [];
     if (el.rangeX) { pts.push(new THREE.Vector3(el.x - el.rangeX, el.y, 0.5), new THREE.Vector3(el.x + el.rangeX, el.y, 0.5)); }
     if (el.rangeY) { pts.push(new THREE.Vector3(el.x, el.y - el.rangeY, 0.5), new THREE.Vector3(el.x, el.y + el.rangeY, 0.5)); }
@@ -883,14 +937,15 @@ function buildElementMesh(el, selected) {
   else if (el.t === 'saw_trap_double') {
     const asset = getAssetClone('saw_trap_double', el.color);
     const sz = el.scale || 1;
-    if (fitAsset(asset, 2 * sz, 1.5 * sz, 1.5 * sz, el.x, el.y, 0)) {
+    const w = el.w || 1;
+    if (fitAsset(asset, 2 * sz * w, 1.5 * sz, 1.5 * sz, el.x, el.y, 0)) {
       if (selected) tintModel(asset, COLORS.selected);
       group.add(asset);
     } else {
       const m = new THREE.Mesh(new THREE.BoxGeometry(2 * sz, 0.8 * sz, 0.8 * sz), mat(col));
       m.position.set(el.x, el.y, 0); group.add(m);
     }
-    group.userData.anim = { type: 'saw_trap', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, time: 0 };
+    group.userData.anim = { type: 'saw_trap', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, spin: el.spin || 0, time: 0 };
     const pts = [];
     if (el.rangeX) { pts.push(new THREE.Vector3(el.x - el.rangeX, el.y, 0.5), new THREE.Vector3(el.x + el.rangeX, el.y, 0.5)); }
     if (el.rangeY) { pts.push(new THREE.Vector3(el.x, el.y - el.rangeY, 0.5), new THREE.Vector3(el.x, el.y + el.rangeY, 0.5)); }
@@ -899,14 +954,15 @@ function buildElementMesh(el, selected) {
   else if (el.t === 'saw_trap_long') {
     const asset = getAssetClone('saw_trap_long', el.color);
     const sz = el.scale || 1;
-    if (fitAsset(asset, 3 * sz, 1.5 * sz, 1.5 * sz, el.x, el.y, 0)) {
+    const w = el.w || 1;
+    if (fitAsset(asset, 3 * sz * w, 1.5 * sz, 1.5 * sz, el.x, el.y, 0)) {
       if (selected) tintModel(asset, COLORS.selected);
       group.add(asset);
     } else {
       const m = new THREE.Mesh(new THREE.BoxGeometry(3 * sz, 0.8 * sz, 0.8 * sz), mat(col));
       m.position.set(el.x, el.y, 0); group.add(m);
     }
-    group.userData.anim = { type: 'saw_trap', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, time: 0 };
+    group.userData.anim = { type: 'saw_trap', baseX: el.x, baseY: el.y, rangeX: el.rangeX || 0, rangeY: el.rangeY || 0, spd: el.spd || 2, spin: el.spin || 0, time: 0 };
     const pts = [];
     if (el.rangeX) { pts.push(new THREE.Vector3(el.x - el.rangeX, el.y, 0.5), new THREE.Vector3(el.x + el.rangeX, el.y, 0.5)); }
     if (el.rangeY) { pts.push(new THREE.Vector3(el.x, el.y - el.rangeY, 0.5), new THREE.Vector3(el.x, el.y + el.rangeY, 0.5)); }
@@ -950,6 +1006,28 @@ function buildElementMesh(el, selected) {
       group.add(asset);
     } else {
       const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+  }
+  else if (el.t === 'pipe_straight') {
+    const asset = getAssetClone('pipe_straight', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, sz, 2 * sz, sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * sz, 0.5 * sz, 2 * sz, 16), mat(col));
+      m.position.set(el.x, el.y, 0); group.add(m);
+    }
+  }
+  else if (el.t === 'pipe_end') {
+    const asset = getAssetClone('pipe_end', el.color);
+    const sz = el.scale || 1;
+    if (fitAsset(asset, 1.2 * sz, sz, 1.2 * sz, el.x, el.y, 0)) {
+      if (selected) tintModel(asset, COLORS.selected);
+      group.add(asset);
+    } else {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.6 * sz, 0.6 * sz, sz, 16), mat(col));
       m.position.set(el.x, el.y, 0); group.add(m);
     }
   }
@@ -1018,31 +1096,34 @@ function snapVal(v) { return snap ? Math.round(v * 2) / 2 : v; }
 function defaultEl(type, x, y) {
   x = snapVal(x); y = snapVal(y);
   switch (type) {
-    case 'wall': return { t: 'wall', x, gapY: y, gapH: 3 };
+    case 'wall': return { t: 'wall', x, gapY: y, gapH: 3, w: 0.6 };
     case 'spinner': return { t: 'spinner', x, y, len: 2.5, spd: 2 };
     case 'mover': return { t: 'mover', x, y, range: 2.5, spd: 1.5, w: 1.2, h: 5 };
     case 'coin': return { t: 'coin', x, y };
     case 'star': return { t: 'star', x, y };
     case 'cannon': return { t: 'cannon', x, y: 0 };
     case 'finish': return { t: 'finish', x };
-    case 'sawblade': return { t: 'sawblade', x, y, range: 0, spd: 2, scale: 1 };
+    case 'sawblade': return { t: 'sawblade', x, y, range: 0, spd: 2, scale: 1, rotX: 90 };
     case 'spikeball': return { t: 'spikeball', x, y, range: 0, spd: 1.5, scale: 1 };
-    case 'hammer': return { t: 'hammer', x, y, len: 2, spd: 2, scale: 1 };
+    case 'hammer': return { t: 'hammer', x, y, len: 2, spd: 2, swing: 1.2, scale: 1 };
     case 'hoop': return { t: 'hoop', x, y, scale: 1 };
     case 'bomb': return { t: 'bomb', x, y, scale: 1 };
-    case 'spikeroller': return { t: 'spikeroller', x, y, range: 0, spd: 2, scale: 1 };
+    case 'spikeroller': return { t: 'spikeroller', x, y, range: 0, spd: 2, scale: 1, rotY: 90 };
     case 'cone': return { t: 'cone', x, y, scale: 1 };
     case 'chest': return { t: 'chest', x, y, scale: 1 };
     case 'heart': return { t: 'heart', x, y, scale: 1 };
     case 'arch': return { t: 'arch', x, y: 0, scale: 1 };
-    case 'flag': return { t: 'flag', x, y, scale: 1 };
-    case 'crate': return { t: 'crate', x, y, scale: 1 };
+    case 'flag': return { t: 'flag', x, y, scale: 1.6, rotY: -90 };
+    case 'crate': return { t: 'crate', x, y, scale: 1.6 };
     case 'spinner_single': return { t: 'spinner_single', x, y, len: 2.5, spd: 2, scale: 1 };
     case 'spikewall': return { t: 'spikewall', x, y, scale: 1, rangeX: 0, rangeY: 0, spd: 1 };
     case 'arrow_sign': return { t: 'arrow_sign', x, y, scale: 1 };
-    case 'saw_trap': return { t: 'saw_trap', x, y, rangeX: 0, rangeY: 0, spd: 2, scale: 1 };
-    case 'saw_trap_double': return { t: 'saw_trap_double', x, y, rangeX: 0, rangeY: 0, spd: 2, scale: 1 };
-    case 'saw_trap_long': return { t: 'saw_trap_long', x, y, rangeX: 0, rangeY: 0, spd: 2, scale: 1 };
+    case 'saw_trap': return { t: 'saw_trap', x, y, rangeX: 0, rangeY: 0, spd: 2, spin: 0, w: 1, scale: 1, rotX: 90 };
+    case 'saw_trap_double': return { t: 'saw_trap_double', x, y, rangeX: 0, rangeY: 0, spd: 2, spin: 0, w: 1, scale: 1.3, rotX: 85 };
+    case 'saw_trap_long': return { t: 'saw_trap_long', x, y, rangeX: 0, rangeY: 0, spd: 2, spin: 0, w: 1, scale: 1, rotX: 90 };
+    case 'pendulum': return { t: 'pendulum', x, y: 3, len: 3, spd: 1.5, swing: 0.8, scale: 1 };
+    case 'pipe_straight': return { t: 'pipe_straight', x, y, scale: 1 };
+    case 'pipe_end': return { t: 'pipe_end', x, y, scale: 1 };
   }
 }
 
@@ -1076,7 +1157,7 @@ function updateProps() {
   };
 
   f('X', 'x');
-  if (el.t === 'wall') { f('Gap Y', 'gapY', 0.5, -4, 4); f('Gap H', 'gapH', 0.5, 1, 8); f('Scale', 'scale', 0.1, 0.3, 3); }
+  if (el.t === 'wall') { f('Gap Y', 'gapY', 0.5, -4, 4); f('Gap H', 'gapH', 0.5, 1, 8); f('Width', 'w', 0.2, 0.2, 6); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'spinner') { f('Y', 'y'); f('Length', 'len', 0.5, 0.5, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'spinner_single') { f('Y', 'y'); f('Length', 'len', 0.5, 0.5, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'mover') { f('Y', 'y'); f('W', 'w', 0.2); f('H', 'h', 0.5); f('Range', 'range', 0.5); f('Speed', 'spd', 0.5); f('Scale', 'scale', 0.1, 0.3, 3); }
@@ -1084,7 +1165,7 @@ function updateProps() {
   else if (el.t === 'cannon') { f('Y', 'y'); }
   else if (el.t === 'sawblade') { f('Y', 'y'); f('Range', 'range', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'spikeball') { f('Y', 'y'); f('Range', 'range', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
-  else if (el.t === 'hammer') { f('Y', 'y'); f('Length', 'len', 0.5, 1, 4); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'hammer') { f('Y', 'y'); f('Length', 'len', 0.5, 1, 4); f('Speed', 'spd', 0.5, -5, 5); f('Swing', 'swing', 0.1, 0.2, 2.5); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'hoop') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); h += `<div class="prop-row"><label>Animate</label><input type="checkbox" ${el.anim ? 'checked' : ''} data-key="anim"></div>`; }
   else if (el.t === 'bomb') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'spikeroller') { f('Y', 'y'); f('Range', 'range', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
@@ -1094,10 +1175,12 @@ function updateProps() {
   else if (el.t === 'crate') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'spikewall') { f('Y', 'y'); f('Range X', 'rangeX', 0.5, 0, 10); f('Range Y', 'rangeY', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
   else if (el.t === 'arrow_sign') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
-  else if (el.t === 'saw_trap' || el.t === 'saw_trap_double' || el.t === 'saw_trap_long') { f('Y', 'y'); f('Range X', 'rangeX', 0.5, 0, 10); f('Range Y', 'rangeY', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'saw_trap' || el.t === 'saw_trap_double' || el.t === 'saw_trap_long') { f('Y', 'y'); f('Width', 'w', 0.1, 0.5, 3); f('Range X', 'rangeX', 0.5, 0, 10); f('Range Y', 'rangeY', 0.5, 0, 5); f('Speed', 'spd', 0.5, -5, 5); f('Spin', 'spin', 0.5, -5, 5); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'pendulum') { f('Y', 'y'); f('Chain Length', 'len', 0.5, 1, 8); f('Speed', 'spd', 0.5, 0.5, 5); f('Swing', 'swing', 0.1, 0.2, 1.5); f('Scale', 'scale', 0.1, 0.3, 3); }
+  else if (el.t === 'pipe_straight' || el.t === 'pipe_end') { f('Y', 'y'); f('Scale', 'scale', 0.1, 0.3, 3); }
 
   // Rotation controls for 3D asset types
-  const rotTypes = ['spinner', 'spinner_single', 'sawblade', 'spikeball', 'hammer', 'wall', 'mover', 'cannon', 'hoop', 'bomb', 'spikeroller', 'cone', 'arch', 'flag', 'chest', 'heart', 'crate', 'spikewall', 'arrow_sign', 'saw_trap', 'saw_trap_double', 'saw_trap_long'];
+  const rotTypes = ['spinner', 'spinner_single', 'sawblade', 'spikeball', 'hammer', 'wall', 'mover', 'cannon', 'hoop', 'bomb', 'spikeroller', 'cone', 'arch', 'flag', 'chest', 'heart', 'crate', 'spikewall', 'arrow_sign', 'saw_trap', 'saw_trap_double', 'saw_trap_long', 'pendulum', 'pipe_straight', 'pipe_end'];
   if (rotTypes.includes(el.t)) {
     h += `<div style="margin-top:6px; border-top:1px solid #333; padding-top:6px;">`;
     h += `<div style="color:#aaa; font-size:10px; margin-bottom:4px;">Facing Direction</div>`;
@@ -1119,7 +1202,7 @@ function updateProps() {
   }
 
   // Color selector for types that support color variants
-  const colorTypes = ['wall', 'spinner', 'spinner_single', 'mover', 'hammer', 'hoop', 'bomb', 'cone', 'chest', 'arch', 'flag', 'spikewall', 'arrow_sign', 'saw_trap', 'saw_trap_double', 'saw_trap_long'];
+  const colorTypes = ['wall', 'spinner', 'spinner_single', 'mover', 'hammer', 'hoop', 'bomb', 'cone', 'chest', 'arch', 'flag', 'spikewall', 'arrow_sign', 'saw_trap', 'saw_trap_double', 'saw_trap_long', 'pipe_straight', 'pipe_end'];
   if (colorTypes.includes(el.t)) {
     const colorMap = { red: '#E53935', blue: '#1E88E5', green: '#43A047', yellow: '#FDD835' };
     h += `<div class="prop-row" style="margin-top:6px;"><label>Color</label><div style="display:flex; gap:4px;">`;
@@ -1401,6 +1484,21 @@ function restartPlay() {
   playerMesh.visible = true;
 }
 
+// Circle vs oriented box collision (proper SAT)
+function circleVsRotatedBoxR(px, py, pr, bx, by, hw, hh, angle) {
+  const cos = Math.cos(-angle);
+  const sin = Math.sin(-angle);
+  const dx = px - bx;
+  const dy = py - by;
+  const lx = dx * cos - dy * sin;
+  const ly = dx * sin + dy * cos;
+  const cx = Math.max(-hw, Math.min(hw, lx));
+  const cy = Math.max(-hh, Math.min(hh, ly));
+  const distX = lx - cx;
+  const distY = ly - cy;
+  return (distX * distX + distY * distY) < pr * pr;
+}
+
 function updatePlay(dt) {
   if (!playState) return;
   const s = playState;
@@ -1435,7 +1533,7 @@ function updatePlay(dt) {
     const el = elements[i];
     if (el.t === 'wall') {
       const halfGap = el.gapH / 2;
-      const hw = 0.3;
+      const hw = (el.w || 0.6) / 2;
       if (s.x + pr > el.x - hw && s.x - pr < el.x + hw) {
         // In top wall?
         const topWallBottom = el.gapY + halfGap;
@@ -1472,12 +1570,15 @@ function updatePlay(dt) {
       }
     }
     if (el.t === 'saw_trap' || el.t === 'saw_trap_double' || el.t === 'saw_trap_long') {
+      const sz = el.scale || 1;
       const osc = Math.sin(s.time * (el.spd || 2));
       const cx = el.x + (el.rangeX ? osc * el.rangeX : 0);
       const cy = el.y + (el.rangeY ? osc * el.rangeY : 0);
-      const r = el.t === 'saw_trap_long' ? 1.0 : el.t === 'saw_trap_double' ? 0.7 : 0.55;
-      const dx = s.x - cx, dy = s.y - cy;
-      if (Math.sqrt(dx * dx + dy * dy) < pr + r * (el.scale || 1)) {
+      const w = el.w || 1;
+      const hw = (el.t === 'saw_trap_long' ? 1.5 * sz : el.t === 'saw_trap_double' ? 1.0 * sz : 0.6 * sz) * w;
+      const hh = el.t === 'saw_trap' ? 0.6 * sz : 0.5 * sz;
+      const angle = (el.rotZ || 0) * Math.PI / 180;
+      if (circleVsRotatedBoxR(s.x, s.y, pr, cx, cy, hw, hh, angle)) {
         s.alive = false; s.deathTimer = 0; return;
       }
     }
@@ -1486,7 +1587,16 @@ function updatePlay(dt) {
       const osc = Math.sin(s.time * (el.spd || 1));
       const cx = el.x + (el.rangeX ? osc * el.rangeX : 0);
       const cy = el.y + (el.rangeY ? osc * el.rangeY : 0);
-      if (Math.abs(s.x - cx) < pr + 1 * sz && Math.abs(s.y - cy) < pr + 0.5 * sz) {
+      const angle = (el.rotZ || 0) * Math.PI / 180;
+      if (circleVsRotatedBoxR(s.x, s.y, pr, cx, cy, 1 * sz, 0.5 * sz, angle)) {
+        s.alive = false; s.deathTimer = 0; return;
+      }
+    }
+    if (el.t === 'spikeroller') {
+      const sz = el.scale || 1;
+      const ry = el.range ? el.y + Math.sin(s.time * (el.spd || 2)) * el.range : el.y;
+      const angle = (el.rotZ || 0) * Math.PI / 180;
+      if (circleVsRotatedBoxR(s.x, s.y, pr, el.x, ry, 1 * sz, 0.3 * sz, angle)) {
         s.alive = false; s.deathTimer = 0; return;
       }
     }
@@ -1494,18 +1604,66 @@ function updatePlay(dt) {
       const sy = el.range ? el.y + Math.sin(s.time * el.spd) * el.range : el.y;
       const dx = s.x - el.x;
       const dy = s.y - sy;
-      if (Math.sqrt(dx * dx + dy * dy) < pr + 0.35) {
+      if (Math.sqrt(dx * dx + dy * dy) < pr + 0.35 * (el.scale || 1)) {
+        s.alive = false; s.deathTimer = 0; return;
+      }
+    }
+    if (el.t === 'pendulum') {
+      const sz = el.scale || 1;
+      const chainLen = el.len || 3;
+      const linkSpace = 0.35 * sz;
+      const ballR = 0.7 * sz;
+      const hookH = 0.4 * sz;
+      const pivotY = el.y - hookH;
+      const numLinks = Math.max(1, Math.round(chainLen / linkSpace));
+      const ballSize = ballR * 1.4;
+      const totalLen = numLinks * linkSpace + ballSize * 0.3;
+      const angle = Math.sin(s.time * (el.spd || 1.5)) * (el.swing || 0.8);
+      const bx = el.x + Math.sin(angle) * totalLen;
+      const by = pivotY - Math.cos(angle) * totalLen;
+      const dx = s.x - bx;
+      const dy = s.y - by;
+      if (Math.sqrt(dx * dx + dy * dy) < pr + ballR * 0.5) {
         s.alive = false; s.deathTimer = 0; return;
       }
     }
     if (el.t === 'hammer') {
       const cycle = (s.time * el.spd) % (Math.PI * 2);
       const swing = Math.sin(cycle);
-      const hx = el.x + Math.sin(swing * 1.2) * (el.len || 2) * 0.5;
-      const hy = el.y - Math.cos(swing * 1.2) * (el.len || 2) * 0.5;
+      const swingAmp = el.swing || 1.2;
+      const hx = el.x + Math.sin(swing * swingAmp) * (el.len || 2) * 0.5;
+      const hy = el.y - Math.cos(swing * swingAmp) * (el.len || 2) * 0.5;
       const dx = s.x - hx;
       const dy = s.y - hy;
       if (Math.sqrt(dx * dx + dy * dy) < pr + 0.5) {
+        s.alive = false; s.deathTimer = 0; return;
+      }
+    }
+    if (el.t === 'crate') {
+      const sz = el.scale || 1;
+      const angle = (el.rotZ || 0) * Math.PI / 180;
+      if (circleVsRotatedBoxR(s.x, s.y, pr, el.x, el.y, sz / 2, sz / 2, angle)) {
+        s.alive = false; s.deathTimer = 0; return;
+      }
+    }
+    if (el.t === 'pipe_straight') {
+      const sz = el.scale || 1;
+      const angle = (el.rotZ || 0) * Math.PI / 180;
+      if (circleVsRotatedBoxR(s.x, s.y, pr, el.x, el.y, 0.5 * sz, sz, angle)) {
+        s.alive = false; s.deathTimer = 0; return;
+      }
+    }
+    if (el.t === 'pipe_end') {
+      const sz = el.scale || 1;
+      const angle = (el.rotZ || 0) * Math.PI / 180;
+      if (circleVsRotatedBoxR(s.x, s.y, pr, el.x, el.y, 0.6 * sz, 0.5 * sz, angle)) {
+        s.alive = false; s.deathTimer = 0; return;
+      }
+    }
+    if (el.t === 'bomb') {
+      const sz = el.scale || 1;
+      const dx = s.x - el.x, dy = s.y - el.y;
+      if (Math.sqrt(dx * dx + dy * dy) < pr + 0.4 * sz) {
         s.alive = false; s.deathTimer = 0; return;
       }
     }
@@ -1578,7 +1736,7 @@ function renderLevels() {
   const add = document.createElement('div');
   add.className = 'lv-add';
   add.textContent = '+';
-  add.onclick = () => { saveUndo(); levels.push({ name: `Level ${levels.length + 1}`, speed: 5 + levels.length * 0.5, bgIdx: levels.length % 3, elements: [] }); lvlIdx = levels.length - 1; selectedIdx = -1; rebuildMeshes(); updateProps(); renderLevels(); };
+  add.onclick = () => { saveUndo(); levels.push({ name: `Level ${levels.length + 1}`, speed: 5 + levels.length * 0.5, bgIdx: Math.floor(levels.length / 5) % 6, elements: [] }); lvlIdx = levels.length - 1; selectedIdx = -1; rebuildMeshes(); updateProps(); renderLevels(); };
   bar.appendChild(add);
 }
 
@@ -1635,145 +1793,147 @@ document.getElementById('btn-pause-anim').addEventListener('click', () => {
 //  LOAD GAME LEVELS
 // ═══════════════════════════════════
 levels = [
-  { name: "Sunny Meadow", speed: 5, bgIdx: 0, elements: [
+  { name: "Sunny Meadow", speed: 4.5, bgIdx: 0, elements: [
     { t: 'coin', x: 6, y: 0 }, { t: 'coin', x: 7, y: 0.5 }, { t: 'coin', x: 8, y: 1 },
     { t: 'coin', x: 9, y: 0.5 }, { t: 'coin', x: 10, y: 0 },
-    { t: 'wall', x: 16, gapY: 0, gapH: 3.5 },
+    { t: 'wall', x: 16, gapY: 0, gapH: 4 },
     { t: 'coin', x: 20, y: 1 }, { t: 'coin', x: 21, y: 1.5 }, { t: 'coin', x: 22, y: 1 },
-    { t: 'spinner', x: 28, y: 0, len: 2.5, spd: 1.5 },
-    { t: 'star', x: 28, y: 3.5 },
-    { t: 'wall', x: 35, gapY: 1.5, gapH: 3 },
-    { t: 'wall', x: 40, gapY: -1, gapH: 3 },
-    { t: 'coin', x: 37, y: 1.5 }, { t: 'coin', x: 38, y: 1.5 },
-    { t: 'coin', x: 45, y: -1 }, { t: 'coin', x: 46, y: 0 }, { t: 'coin', x: 47, y: 1 },
-    { t: 'coin', x: 48, y: 2 }, { t: 'coin', x: 49, y: 1 }, { t: 'coin', x: 50, y: 0 },
-    { t: 'star', x: 47.5, y: 3.2 },
-    { t: 'spinner', x: 55, y: 0, len: 3, spd: 2 },
-    { t: 'coin', x: 60, y: 0 }, { t: 'coin', x: 61, y: 0 }, { t: 'coin', x: 62, y: 0 },
-    { t: 'star', x: 60, y: -2.5 },
-    { t: 'wall', x: 68, gapY: 0.5, gapH: 3 },
-    { t: 'coin', x: 72, y: 0 }, { t: 'coin', x: 73, y: 0 },
-    { t: 'finish', x: 80 },
+    { t: 'wall', x: 28, gapY: 1, gapH: 3.5 },
+    { t: 'wall', x: 34, gapY: -1, gapH: 3.5 },
+    { t: 'star', x: 31, y: 0 },
+    { t: 'coin', x: 38, y: 0 }, { t: 'coin', x: 39, y: 0 }, { t: 'coin', x: 40, y: 0 },
+    { t: 'wall', x: 46, gapY: 0, gapH: 3 },
+    { t: 'coin', x: 50, y: -1 }, { t: 'coin', x: 51, y: 0 }, { t: 'coin', x: 52, y: 1 },
+    { t: 'star', x: 55, y: 3 },
+    { t: 'coin', x: 58, y: 0 }, { t: 'coin', x: 59, y: 0 },
+    { t: 'finish', x: 65 },
   ]},
-  { name: "Candy Canyon", speed: 5.2, bgIdx: 1, elements: [
-    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 }, { t: 'coin', x: 7, y: 0 },
-    { t: 'wall', x: 12, gapY: 1, gapH: 2.8 },
+  { name: "Windy Hills", speed: 4.8, bgIdx: 0, elements: [
+    { t: 'coin', x: 6, y: 0 }, { t: 'coin', x: 7, y: 0 }, { t: 'coin', x: 8, y: 0 },
+    { t: 'wall', x: 14, gapY: 0.5, gapH: 3.5 },
+    { t: 'spinner', x: 20, y: 0, len: 2, spd: 1.5 },
+    { t: 'star', x: 20, y: 3.5 },
+    { t: 'coin', x: 25, y: 1 }, { t: 'coin', x: 26, y: 1 },
+    { t: 'wall', x: 32, gapY: -1, gapH: 3 },
+    { t: 'wall', x: 37, gapY: 1, gapH: 3 },
+    { t: 'coin', x: 34, y: -1 }, { t: 'coin', x: 35, y: -1 },
+    { t: 'spinner', x: 43, y: 0, len: 2.5, spd: -1.8 },
+    { t: 'coin', x: 48, y: 0 }, { t: 'coin', x: 49, y: 0.5 }, { t: 'coin', x: 50, y: 1 },
+    { t: 'star', x: 55, y: -2 },
+    { t: 'wall', x: 58, gapY: 0, gapH: 3 },
+    { t: 'coin', x: 62, y: 0 }, { t: 'coin', x: 63, y: 0 },
+    { t: 'finish', x: 70 },
+  ]},
+  { name: "Candy Canyon", speed: 5, bgIdx: 0, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+    { t: 'wall', x: 12, gapY: 1.5, gapH: 3 },
     { t: 'spinner', x: 18, y: 0, len: 2.5, spd: 2 },
-    { t: 'coin', x: 18, y: 3 },
-    { t: 'wall', x: 24, gapY: -1.5, gapH: 2.5 },
-    { t: 'wall', x: 28, gapY: 1.5, gapH: 2.5 },
+    { t: 'coin', x: 18, y: 3.5 },
+    { t: 'wall', x: 24, gapY: -1.5, gapH: 2.8 },
+    { t: 'wall', x: 29, gapY: 1.5, gapH: 2.8 },
     { t: 'star', x: 26, y: 0 },
-    { t: 'coin', x: 32, y: -1 }, { t: 'coin', x: 33, y: -0.5 }, { t: 'coin', x: 34, y: 0 },
-    { t: 'spinner', x: 38, y: 1, len: 2, spd: -2.5 },
-    { t: 'spinner', x: 42, y: -1, len: 2, spd: 2.5 },
-    { t: 'star', x: 40, y: 3.8 },
-    { t: 'mover', x: 48, y: 0, range: 2.5, spd: 1.5, w: 1.2, h: 5 },
-    { t: 'coin', x: 52, y: 2 }, { t: 'coin', x: 53, y: 2 }, { t: 'coin', x: 54, y: 2 },
-    { t: 'wall', x: 58, gapY: 0, gapH: 2.2 },
-    { t: 'spinner', x: 63, y: 0, len: 3.5, spd: 2 },
-    { t: 'coin', x: 67, y: -1 }, { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 1 },
-    { t: 'wall', x: 74, gapY: -0.5, gapH: 2.5 },
-    { t: 'star', x: 72, y: -3 },
-    { t: 'coin', x: 78, y: 0 }, { t: 'coin', x: 79, y: 0 },
-    { t: 'finish', x: 85 },
+    { t: 'coin', x: 33, y: -1 }, { t: 'coin', x: 34, y: 0 }, { t: 'coin', x: 35, y: 1 },
+    { t: 'spinner', x: 40, y: 0, len: 2, spd: -2 },
+    { t: 'spinner', x: 44, y: 0, len: 2, spd: 2 },
+    { t: 'wall', x: 50, gapY: 0, gapH: 2.5 },
+    { t: 'star', x: 48, y: 3.5 },
+    { t: 'coin', x: 54, y: 0 }, { t: 'coin', x: 55, y: 0 }, { t: 'coin', x: 56, y: 0 },
+    { t: 'wall', x: 62, gapY: -0.5, gapH: 2.5 },
+    { t: 'coin', x: 66, y: 0 }, { t: 'coin', x: 67, y: 0 },
+    { t: 'finish', x: 74 },
   ]},
-  { name: "Cloud Kingdom", speed: 5.5, bgIdx: 2, elements: [
-    { t: 'coin', x: 5, y: 1 }, { t: 'coin', x: 6, y: 1.5 },
-    { t: 'spinner', x: 10, y: 0, len: 2.5, spd: 2.5 },
-    { t: 'wall', x: 16, gapY: 2, gapH: 2.2 },
-    { t: 'wall', x: 19, gapY: -2, gapH: 2.2 },
-    { t: 'wall', x: 22, gapY: 0.5, gapH: 2 },
-    { t: 'star', x: 19, y: 2 },
-    { t: 'spinner', x: 27, y: 1, len: 2.5, spd: -3 },
-    { t: 'spinner', x: 30, y: -1, len: 2.5, spd: 3 },
-    { t: 'coin', x: 28, y: -2 }, { t: 'coin', x: 29, y: -2 },
-    { t: 'mover', x: 35, y: 0, range: 3, spd: 2, w: 0.8, h: 6 },
-    { t: 'mover', x: 39, y: 0, range: 3, spd: -2, w: 0.8, h: 6 },
-    { t: 'star', x: 37, y: 0 },
-    { t: 'coin', x: 43, y: 0 }, { t: 'coin', x: 44, y: 0.5 }, { t: 'coin', x: 45, y: 1 },
-    { t: 'spinner', x: 50, y: 0, len: 3, spd: 2 },
-    { t: 'wall', x: 55, gapY: -1, gapH: 2 },
-    { t: 'spinner', x: 59, y: 1, len: 2, spd: -3 },
-    { t: 'wall', x: 63, gapY: 1.5, gapH: 2 },
-    { t: 'star', x: 61, y: -3.5 },
-    { t: 'coin', x: 67, y: 0 }, { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 0 },
-    { t: 'coin', x: 70, y: 0 }, { t: 'coin', x: 71, y: 0 },
-    { t: 'wall', x: 76, gapY: 0, gapH: 2.5 },
-    { t: 'coin', x: 80, y: 1 }, { t: 'coin', x: 81, y: 0 },
-    { t: 'finish', x: 88 },
+  { name: "Shifting Sands", speed: 5, bgIdx: 0, elements: [
+    { t: 'coin', x: 5, y: 0.5 }, { t: 'coin', x: 6, y: 1 }, { t: 'coin', x: 7, y: 0.5 },
+    { t: 'mover', x: 14, y: 0, range: 2, spd: 1.5, w: 1, h: 5 },
+    { t: 'coin', x: 18, y: 2 }, { t: 'coin', x: 19, y: 2 },
+    { t: 'wall', x: 24, gapY: 1, gapH: 2.8 },
+    { t: 'spinner', x: 30, y: 0, len: 2.5, spd: 2 },
+    { t: 'star', x: 30, y: 3.5 },
+    { t: 'mover', x: 36, y: 0, range: 2.5, spd: -1.8, w: 1, h: 5 },
+    { t: 'mover', x: 40, y: 0, range: 2.5, spd: 1.8, w: 1, h: 5 },
+    { t: 'coin', x: 38, y: 0 },
+    { t: 'wall', x: 46, gapY: -1, gapH: 2.5 },
+    { t: 'coin', x: 50, y: -1 }, { t: 'coin', x: 51, y: 0 }, { t: 'coin', x: 52, y: 1 },
+    { t: 'spinner', x: 57, y: 0, len: 2.5, spd: -2.2 },
+    { t: 'star', x: 62, y: -2.5 },
+    { t: 'coin', x: 65, y: 0 }, { t: 'coin', x: 66, y: 0 },
+    { t: 'finish', x: 73 },
   ]},
-  { name: "Sawmill Valley", speed: 5.5, bgIdx: 0, elements: [
+  { name: "Sawmill Valley", speed: 5.2, bgIdx: 0, elements: [
     { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0.5 }, { t: 'coin', x: 7, y: 1 },
     { t: 'sawblade', x: 14, y: 0, range: 0, spd: 2 },
     { t: 'coin', x: 18, y: 2 }, { t: 'coin', x: 19, y: 2 },
-    { t: 'wall', x: 22, gapY: 1, gapH: 2.5 },
-    { t: 'sawblade', x: 28, y: 2, range: 3, spd: 1.5 },
-    { t: 'star', x: 26, y: -2.5 },
-    { t: 'coin', x: 32, y: -1 }, { t: 'coin', x: 33, y: 0 }, { t: 'coin', x: 34, y: 1 },
-    { t: 'spinner', x: 38, y: 0, len: 2.5, spd: 2 },
-    { t: 'sawblade', x: 44, y: -1, range: 2, spd: 2 },
-    { t: 'wall', x: 48, gapY: 1.5, gapH: 2.5 },
-    { t: 'coin', x: 52, y: 1.5 }, { t: 'coin', x: 53, y: 1.5 },
-    { t: 'star', x: 50, y: 3.5 },
-    { t: 'sawblade', x: 58, y: 0, range: 3.5, spd: 1.8 },
-    { t: 'wall', x: 62, gapY: -1, gapH: 2.5 },
-    { t: 'coin', x: 66, y: -1 }, { t: 'coin', x: 67, y: 0 }, { t: 'coin', x: 68, y: 1 },
-    { t: 'mover', x: 72, y: 0, range: 2.5, spd: 2, w: 1, h: 5 },
-    { t: 'star', x: 76, y: -3 },
-    { t: 'coin', x: 80, y: 0 }, { t: 'coin', x: 81, y: 0 },
-    { t: 'finish', x: 88 },
+    { t: 'wall', x: 24, gapY: 1, gapH: 2.8 },
+    { t: 'sawblade', x: 30, y: 2, range: 3, spd: 1.5 },
+    { t: 'star', x: 28, y: -2.5 },
+    { t: 'coin', x: 34, y: -1 }, { t: 'coin', x: 35, y: 0 }, { t: 'coin', x: 36, y: 1 },
+    { t: 'spinner', x: 42, y: 0, len: 2.5, spd: 2 },
+    { t: 'sawblade', x: 48, y: -1, range: 2, spd: 2 },
+    { t: 'wall', x: 54, gapY: 1, gapH: 2.5 },
+    { t: 'star', x: 52, y: 3.5 },
+    { t: 'coin', x: 58, y: 0 }, { t: 'coin', x: 59, y: 0 }, { t: 'coin', x: 60, y: 0 },
+    { t: 'sawblade', x: 66, y: 1, range: 2.5, spd: 1.8 },
+    { t: 'coin', x: 70, y: 0 }, { t: 'coin', x: 71, y: 0 },
+    { t: 'finish', x: 78 },
   ]},
-  { name: "Spike Cavern", speed: 5.8, bgIdx: 1, elements: [
+  { name: "Spike Cavern", speed: 5.3, bgIdx: 1, elements: [
     { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
     { t: 'spikeball', x: 12, y: 2, range: 2.5, spd: 1.5 },
-    { t: 'wall', x: 16, gapY: -1, gapH: 2.5 },
-    { t: 'coin', x: 20, y: -1 }, { t: 'coin', x: 21, y: 0 }, { t: 'coin', x: 22, y: 1 },
-    { t: 'sawblade', x: 26, y: 0, range: 2, spd: 2 },
-    { t: 'spikeball', x: 30, y: -2, range: 3, spd: 1.8 },
-    { t: 'star', x: 28, y: 3.5 },
-    { t: 'wall', x: 34, gapY: 1, gapH: 2.2 },
-    { t: 'wall', x: 38, gapY: -1.5, gapH: 2.2 },
-    { t: 'coin', x: 36, y: 1 }, { t: 'coin', x: 36, y: 0 },
-    { t: 'spinner', x: 44, y: 0, len: 3, spd: -2.5 },
-    { t: 'spikeball', x: 50, y: 1, range: 2, spd: 2 },
-    { t: 'spikeball', x: 54, y: -1, range: 2, spd: -2 },
-    { t: 'star', x: 52, y: -3.5 },
-    { t: 'coin', x: 58, y: 0 }, { t: 'coin', x: 59, y: 0 }, { t: 'coin', x: 60, y: 0 },
-    { t: 'sawblade', x: 64, y: 2, range: 3, spd: 2.2 },
-    { t: 'wall', x: 68, gapY: 0, gapH: 2 },
-    { t: 'mover', x: 74, y: 0, range: 3, spd: 2, w: 0.8, h: 6 },
-    { t: 'star', x: 78, y: 3 },
-    { t: 'coin', x: 82, y: 0 }, { t: 'coin', x: 83, y: 0 },
-    { t: 'finish', x: 90 },
+    { t: 'wall', x: 18, gapY: -1, gapH: 2.5 },
+    { t: 'coin', x: 22, y: -1 }, { t: 'coin', x: 23, y: 0 }, { t: 'coin', x: 24, y: 1 },
+    { t: 'sawblade', x: 30, y: 0, range: 2, spd: 2 },
+    { t: 'spikeball', x: 36, y: -2, range: 3, spd: 1.8 },
+    { t: 'star', x: 33, y: 3.5 },
+    { t: 'wall', x: 42, gapY: 1, gapH: 2.5 },
+    { t: 'spinner', x: 48, y: 0, len: 2.5, spd: -2.5 },
+    { t: 'spikeball', x: 54, y: 1, range: 2, spd: 2 },
+    { t: 'coin', x: 58, y: 0 }, { t: 'coin', x: 59, y: 0 },
+    { t: 'star', x: 62, y: -3 },
+    { t: 'wall', x: 66, gapY: 0, gapH: 2.5 },
+    { t: 'coin', x: 70, y: 0 }, { t: 'coin', x: 71, y: 0 },
+    { t: 'finish', x: 78 },
   ]},
-  { name: "Twisted Tunnels", speed: 6, bgIdx: 2, elements: [
-    { t: 'coin', x: 5, y: 1 }, { t: 'coin', x: 6, y: 0 }, { t: 'coin', x: 7, y: -1 },
-    { t: 'wall', x: 12, gapY: 2, gapH: 2 },
-    { t: 'wall', x: 15, gapY: -2, gapH: 2 },
-    { t: 'wall', x: 18, gapY: 1, gapH: 2 },
-    { t: 'star', x: 15, y: 2 },
-    { t: 'sawblade', x: 24, y: 0, range: 3, spd: 2 },
-    { t: 'spinner', x: 30, y: 1, len: 2, spd: 3 },
-    { t: 'spinner', x: 34, y: -1, len: 2, spd: -3 },
-    { t: 'coin', x: 32, y: 3 }, { t: 'coin', x: 33, y: 3 },
-    { t: 'spikeball', x: 40, y: 0, range: 3.5, spd: 1.5 },
-    { t: 'mover', x: 44, y: 0, range: 3, spd: 2.5, w: 1, h: 5 },
-    { t: 'mover', x: 48, y: 0, range: 3, spd: -2.5, w: 1, h: 5 },
-    { t: 'star', x: 46, y: 0 },
-    { t: 'coin', x: 52, y: -1 }, { t: 'coin', x: 53, y: 0 }, { t: 'coin', x: 54, y: 1 },
-    { t: 'wall', x: 58, gapY: 0, gapH: 2 },
-    { t: 'sawblade', x: 62, y: 2, range: 2, spd: 2.5 },
-    { t: 'sawblade', x: 66, y: -2, range: 2, spd: -2.5 },
-    { t: 'spikeball', x: 72, y: 0, range: 2.5, spd: 2 },
-    { t: 'wall', x: 76, gapY: 1, gapH: 2 },
-    { t: 'wall', x: 80, gapY: -1.5, gapH: 2 },
-    { t: 'star', x: 78, y: -3 },
-    { t: 'coin', x: 84, y: 0 }, { t: 'coin', x: 85, y: 0 },
-    { t: 'spinner', x: 90, y: 0, len: 3, spd: 2.5 },
-    { t: 'coin', x: 94, y: 0 }, { t: 'coin', x: 95, y: 0 },
-    { t: 'finish', x: 100 },
+  { name: "Cloud Kingdom", speed: 5.5, bgIdx: 1, elements: [
+    { t: 'coin', x: 5, y: 1 }, { t: 'coin', x: 6, y: 1.5 },
+    { t: 'spinner', x: 12, y: 0, len: 2.5, spd: 2.5 },
+    { t: 'wall', x: 18, gapY: 2, gapH: 2.2 },
+    { t: 'wall', x: 22, gapY: -1.5, gapH: 2.2 },
+    { t: 'star', x: 20, y: 0 },
+    { t: 'sawblade', x: 28, y: 0, range: 2.5, spd: 2 },
+    { t: 'mover', x: 34, y: 0, range: 3, spd: 2, w: 0.8, h: 6 },
+    { t: 'coin', x: 38, y: 0 }, { t: 'coin', x: 39, y: 0.5 }, { t: 'coin', x: 40, y: 1 },
+    { t: 'spikeball', x: 46, y: 1, range: 2, spd: 2 },
+    { t: 'wall', x: 52, gapY: -1, gapH: 2.2 },
+    { t: 'spinner', x: 58, y: 0, len: 2.5, spd: -2.5 },
+    { t: 'star', x: 56, y: -3 },
+    { t: 'sawblade', x: 64, y: 2, range: 2, spd: 2.5 },
+    { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 0 }, { t: 'coin', x: 70, y: 0 },
+    { t: 'wall', x: 76, gapY: 0.5, gapH: 2.5 },
+    { t: 'coin', x: 80, y: 0 },
+    { t: 'finish', x: 85 },
   ]},
-  { name: "Hammer Heights", speed: 6.2, bgIdx: 0, elements: [
+  { name: "Pipe Works", speed: 5.5, bgIdx: 1, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+    { t: 'crate', x: 13, y: -2.5, scale: 1.6 },
+    { t: 'pipe_straight', x: 13, y: 0 },
+    { t: 'pipe_end', x: 13, y: 1.5 },
+    { t: 'coin', x: 17, y: 2 }, { t: 'coin', x: 18, y: 2 },
+    { t: 'spinner', x: 24, y: 0, len: 2.5, spd: 2 },
+    { t: 'star', x: 24, y: 3.5 },
+    { t: 'crate', x: 30, y: -1, scale: 1.4 },
+    { t: 'crate', x: 32, y: 1.5, scale: 1.4 },
+    { t: 'coin', x: 35, y: 0 }, { t: 'coin', x: 36, y: 0 },
+    { t: 'sawblade', x: 42, y: 0, range: 2, spd: 2 },
+    { t: 'pipe_straight', x: 48, y: -1 },
+    { t: 'pipe_end', x: 48, y: 0.5 },
+    { t: 'wall', x: 54, gapY: 1, gapH: 2.5 },
+    { t: 'star', x: 52, y: -2.5 },
+    { t: 'crate', x: 58, y: 0, scale: 1.6 },
+    { t: 'spinner', x: 64, y: 0, len: 2, spd: -2.5 },
+    { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 0 },
+    { t: 'finish', x: 76 },
+  ]},
+  { name: "Hammer Heights", speed: 5.8, bgIdx: 1, elements: [
     { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0.5 },
     { t: 'hammer', x: 12, y: 2, len: 2.5, spd: 2 },
     { t: 'wall', x: 18, gapY: 0, gapH: 2.5 },
@@ -1781,112 +1941,481 @@ levels = [
     { t: 'sawblade', x: 28, y: -1, range: 2.5, spd: 2 },
     { t: 'hammer', x: 34, y: -2, len: 2, spd: 2.5 },
     { t: 'star', x: 31, y: 3.5 },
-    { t: 'spinner', x: 40, y: 0, len: 3, spd: -2.5 },
+    { t: 'spinner', x: 40, y: 0, len: 2.5, spd: -2.5 },
     { t: 'coin', x: 44, y: -1 }, { t: 'coin', x: 45, y: 0 }, { t: 'coin', x: 46, y: 1 },
-    { t: 'wall', x: 50, gapY: 1.5, gapH: 2 },
-    { t: 'hammer', x: 54, y: 0, len: 3, spd: 1.8 },
-    { t: 'spikeball', x: 58, y: 2, range: 3, spd: 2 },
+    { t: 'wall', x: 52, gapY: 1.5, gapH: 2.2 },
+    { t: 'hammer', x: 58, y: 0, len: 3, spd: 1.8 },
     { t: 'star', x: 56, y: -3.5 },
-    { t: 'wall', x: 64, gapY: -1, gapH: 2 },
-    { t: 'sawblade', x: 68, y: 0, range: 3, spd: 2.5 },
-    { t: 'coin', x: 72, y: 0 }, { t: 'coin', x: 73, y: 0 }, { t: 'coin', x: 74, y: 0 },
-    { t: 'mover', x: 78, y: 0, range: 3, spd: 2, w: 0.8, h: 6 },
-    { t: 'hammer', x: 84, y: 2, len: 2.5, spd: 2.5 },
-    { t: 'star', x: 88, y: 0 },
-    { t: 'coin', x: 92, y: 1 }, { t: 'coin', x: 93, y: 0 },
+    { t: 'wall', x: 64, gapY: -1, gapH: 2.2 },
+    { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 0 }, { t: 'coin', x: 70, y: 0 },
+    { t: 'hammer', x: 76, y: 2, len: 2.5, spd: 2.5 },
+    { t: 'coin', x: 80, y: 0 },
+    { t: 'finish', x: 86 },
+  ]},
+  { name: "Buzz Factory", speed: 5.8, bgIdx: 1, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+    { t: 'saw_trap', x: 12, y: 0, rangeX: 0, rangeY: 0, spd: 2 },
+    { t: 'coin', x: 16, y: 2 }, { t: 'coin', x: 17, y: 2 },
+    { t: 'wall', x: 22, gapY: 1, gapH: 2.5 },
+    { t: 'saw_trap', x: 28, y: 0, rangeX: 2, rangeY: 0, spd: 1.5 },
+    { t: 'star', x: 26, y: 3.5 },
+    { t: 'spinner', x: 34, y: 0, len: 2.5, spd: 2.5 },
+    { t: 'coin', x: 38, y: 0 }, { t: 'coin', x: 39, y: 0 },
+    { t: 'saw_trap_double', x: 44, y: -1, rangeX: 0, rangeY: 2, spd: 1.5 },
+    { t: 'wall', x: 50, gapY: 0, gapH: 2.5 },
+    { t: 'star', x: 54, y: -2.5 },
+    { t: 'sawblade', x: 58, y: 1, range: 2, spd: 2 },
+    { t: 'saw_trap', x: 64, y: 0, rangeX: 2, rangeY: 0, spd: 2 },
+    { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 0 },
+    { t: 'finish', x: 76 },
+  ]},
+  { name: "Pendulum Pit", speed: 5.8, bgIdx: 2, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+    { t: 'pendulum', x: 12, y: 3, len: 3, spd: 1.5, swing: 0.7 },
+    { t: 'coin', x: 17, y: 1 }, { t: 'coin', x: 18, y: 1 },
+    { t: 'wall', x: 24, gapY: 0, gapH: 2.5 },
+    { t: 'star', x: 22, y: 3 },
+    { t: 'pendulum', x: 30, y: 3.5, len: 3.5, spd: 1.2, swing: 0.8 },
+    { t: 'sawblade', x: 36, y: 0, range: 2, spd: 2 },
+    { t: 'coin', x: 40, y: -1 }, { t: 'coin', x: 41, y: 0 }, { t: 'coin', x: 42, y: 1 },
+    { t: 'pendulum', x: 48, y: 3, len: 2.5, spd: 1.8, swing: 0.7 },
+    { t: 'wall', x: 54, gapY: -1, gapH: 2.5 },
+    { t: 'star', x: 58, y: -2.5 },
+    { t: 'spinner', x: 62, y: 0, len: 2.5, spd: 2 },
+    { t: 'pendulum', x: 68, y: 3, len: 3, spd: 1.5, swing: 0.9 },
+    { t: 'coin', x: 72, y: 0 }, { t: 'coin', x: 73, y: 0 },
+    { t: 'finish', x: 80 },
+  ]},
+  { name: "Roller Coaster", speed: 6, bgIdx: 2, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+    { t: 'spikeroller', x: 12, y: 0, range: 0, spd: 2 },
+    { t: 'coin', x: 16, y: 2 }, { t: 'coin', x: 17, y: 2 },
+    { t: 'wall', x: 22, gapY: 1.5, gapH: 2.5 },
+    { t: 'spikeroller', x: 28, y: 2, range: 2.5, spd: 1.5 },
+    { t: 'star', x: 26, y: -2 },
+    { t: 'sawblade', x: 34, y: -1, range: 2, spd: 2 },
+    { t: 'coin', x: 38, y: 0 }, { t: 'coin', x: 39, y: 0 },
+    { t: 'spikeroller', x: 44, y: -1, range: 3, spd: 1.8 },
+    { t: 'hammer', x: 50, y: 2, len: 2.5, spd: 2 },
+    { t: 'wall', x: 56, gapY: 0, gapH: 2.2 },
+    { t: 'star', x: 54, y: 3 },
+    { t: 'spikeroller', x: 62, y: 1, range: 2, spd: 2 },
+    { t: 'coin', x: 66, y: 0 }, { t: 'coin', x: 67, y: 0 },
+    { t: 'spinner', x: 72, y: 0, len: 2.5, spd: -2.5 },
+    { t: 'coin', x: 76, y: 0 },
+    { t: 'finish', x: 82 },
+  ]},
+  { name: "Spike Corridor", speed: 6, bgIdx: 2, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+    { t: 'spikewall', x: 12, y: 0, scale: 1, rangeX: 0, rangeY: 2, spd: 1.5 },
+    { t: 'coin', x: 16, y: 2 }, { t: 'coin', x: 17, y: 2 },
+    { t: 'wall', x: 22, gapY: 1, gapH: 2.5 },
+    { t: 'star', x: 20, y: -2.5 },
+    { t: 'spikewall', x: 28, y: 1, scale: 1, rangeX: 2, rangeY: 0, spd: 1.5 },
+    { t: 'sawblade', x: 34, y: -1, range: 2, spd: 2 },
+    { t: 'coin', x: 38, y: 0 }, { t: 'coin', x: 39, y: 0 },
+    { t: 'spikewall', x: 44, y: -1, scale: 1, rangeX: 0, rangeY: 2.5, spd: 1.8 },
+    { t: 'spinner', x: 50, y: 0, len: 2.5, spd: 2.5 },
+    { t: 'wall', x: 56, gapY: -1, gapH: 2.2 },
+    { t: 'star', x: 60, y: 3.5 },
+    { t: 'hammer', x: 64, y: 2, len: 2.5, spd: 2 },
+    { t: 'spikewall', x: 70, y: 0, scale: 1, rangeX: 2, rangeY: 0, spd: 2 },
+    { t: 'coin', x: 74, y: 0 }, { t: 'coin', x: 75, y: 0 },
+    { t: 'finish', x: 82 },
+  ]},
+  { name: "Twisted Tunnels", speed: 6.2, bgIdx: 2, elements: [
+    { t: 'coin', x: 5, y: 1 }, { t: 'coin', x: 6, y: 0 }, { t: 'coin', x: 7, y: -1 },
+    { t: 'wall', x: 12, gapY: 2, gapH: 2.2 },
+    { t: 'wall', x: 16, gapY: -2, gapH: 2.2 },
+    { t: 'wall', x: 20, gapY: 1, gapH: 2 },
+    { t: 'star', x: 16, y: 2 },
+    { t: 'sawblade', x: 26, y: 0, range: 3, spd: 2 },
+    { t: 'spinner', x: 32, y: 1, len: 2, spd: 3 },
+    { t: 'spinner', x: 36, y: -1, len: 2, spd: -3 },
+    { t: 'coin', x: 34, y: 3 }, { t: 'coin', x: 35, y: 3 },
+    { t: 'mover', x: 42, y: 0, range: 3, spd: 2.5, w: 1, h: 5 },
+    { t: 'mover', x: 46, y: 0, range: 3, spd: -2.5, w: 1, h: 5 },
+    { t: 'star', x: 44, y: 0 },
+    { t: 'pendulum', x: 52, y: 3, len: 3, spd: 1.5, swing: 0.8 },
+    { t: 'wall', x: 58, gapY: 0, gapH: 2 },
+    { t: 'saw_trap', x: 64, y: 0, rangeX: 2, rangeY: 0, spd: 2 },
+    { t: 'coin', x: 68, y: 0 }, { t: 'coin', x: 69, y: 0 },
+    { t: 'spikeball', x: 74, y: 0, range: 2.5, spd: 2 },
+    { t: 'star', x: 78, y: -3 },
+    { t: 'coin', x: 82, y: 0 },
+    { t: 'finish', x: 88 },
+  ]},
+  { name: "Danger Zone", speed: 6.2, bgIdx: 2, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+    { t: 'hammer', x: 12, y: 2, len: 2.5, spd: 2.5 },
+    { t: 'sawblade', x: 18, y: -1, range: 2.5, spd: 2 },
+    { t: 'wall', x: 24, gapY: 0, gapH: 2.2 },
+    { t: 'star', x: 22, y: 3 },
+    { t: 'pendulum', x: 30, y: 3, len: 3, spd: 1.5, swing: 0.8 },
+    { t: 'spikewall', x: 36, y: 0, scale: 1, rangeX: 0, rangeY: 2, spd: 2 },
+    { t: 'coin', x: 40, y: 1 }, { t: 'coin', x: 41, y: 1 },
+    { t: 'saw_trap_double', x: 46, y: 0, rangeX: 2, rangeY: 0, spd: 1.5 },
+    { t: 'spikeball', x: 52, y: 2, range: 2.5, spd: 2 },
+    { t: 'wall', x: 58, gapY: -1, gapH: 2 },
+    { t: 'spinner', x: 64, y: 0, len: 3, spd: -2.5 },
+    { t: 'star', x: 62, y: -3.5 },
+    { t: 'hammer', x: 70, y: -2, len: 2, spd: 2.5 },
+    { t: 'saw_trap', x: 76, y: 1, rangeX: 0, rangeY: 2, spd: 2 },
+    { t: 'coin', x: 80, y: 0 }, { t: 'coin', x: 81, y: 0 },
+    { t: 'finish', x: 88 },
+  ]},
+  { name: "Inferno Forge", speed: 6.5, bgIdx: 3, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+    { t: 'saw_trap', x: 12, y: 0, rangeX: 0, rangeY: 0, spd: 2, spin: 2 },
+    { t: 'wall', x: 18, gapY: 1, gapH: 2 },
+    { t: 'saw_trap_long', x: 24, y: 0, rangeX: 2, rangeY: 0, spd: 1.5, w: 1.2 },
+    { t: 'star', x: 22, y: 3.5 },
+    { t: 'hammer', x: 30, y: 2, len: 2.5, spd: 2.5 },
+    { t: 'hammer', x: 34, y: -2, len: 2.5, spd: -2.5 },
+    { t: 'coin', x: 32, y: 0 }, { t: 'coin', x: 33, y: 0 },
+    { t: 'pendulum', x: 40, y: 3.5, len: 3, spd: 1.5, swing: 0.9 },
+    { t: 'sawblade', x: 46, y: 0, range: 3, spd: 2.5 },
+    { t: 'wall', x: 52, gapY: -1, gapH: 2 },
+    { t: 'saw_trap_double', x: 58, y: 0, rangeX: 0, rangeY: 2, spd: 2, spin: 1.5 },
+    { t: 'star', x: 56, y: -3 },
+    { t: 'spikeball', x: 64, y: 1, range: 2.5, spd: 2.5 },
+    { t: 'saw_trap', x: 70, y: -1, rangeX: 2, rangeY: 0, spd: 2 },
+    { t: 'coin', x: 74, y: 0 }, { t: 'coin', x: 75, y: 0 },
+    { t: 'finish', x: 82 },
+  ]},
+  { name: "Pipe Maze", speed: 6.5, bgIdx: 3, elements: [
+    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
+    { t: 'pipe_straight', x: 12, y: -2 },
+    { t: 'pipe_end', x: 12, y: -0.5 },
+    { t: 'sawblade', x: 16, y: 1, range: 2, spd: 2 },
+    { t: 'pipe_straight', x: 22, y: 1.5 },
+    { t: 'pipe_end', x: 22, y: 3 },
+    { t: 'star', x: 20, y: -2 },
+    { t: 'crate', x: 28, y: 0, scale: 1.5 },
+    { t: 'crate', x: 28, y: 2, scale: 1.5 },
+    { t: 'spinner', x: 34, y: 0, len: 2.5, spd: 2.5 },
+    { t: 'coin', x: 38, y: 0 }, { t: 'coin', x: 39, y: 0 },
+    { t: 'pipe_straight', x: 44, y: -1.5 },
+    { t: 'pipe_end', x: 44, y: 0 },
+    { t: 'pendulum', x: 50, y: 3.5, len: 3, spd: 1.5, swing: 0.8 },
+    { t: 'wall', x: 56, gapY: 0, gapH: 2 },
+    { t: 'star', x: 60, y: 3 },
+    { t: 'crate', x: 64, y: -1, scale: 1.4 },
+    { t: 'pipe_straight', x: 64, y: 1 },
+    { t: 'pipe_end', x: 64, y: 2.5 },
+    { t: 'hammer', x: 70, y: 2, len: 2.5, spd: 2.5 },
+    { t: 'coin', x: 74, y: 0 }, { t: 'coin', x: 75, y: 0 },
+    { t: 'finish', x: 82 },
+  ]},
+  { name: "Double Trouble", speed: 6.5, bgIdx: 3, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'spinner', x: 10, y: 1, len: 2, spd: 2.5 },
+    { t: 'spinner', x: 14, y: -1, len: 2, spd: -2.5 },
+    { t: 'wall', x: 20, gapY: 0, gapH: 2 },
+    { t: 'star', x: 18, y: 3 },
+    { t: 'saw_trap_double', x: 26, y: 1, rangeX: 0, rangeY: 2, spd: 2 },
+    { t: 'saw_trap_double', x: 30, y: -1, rangeX: 0, rangeY: 2, spd: -2 },
+    { t: 'coin', x: 34, y: 0 }, { t: 'coin', x: 35, y: 0 },
+    { t: 'pendulum', x: 40, y: 3, len: 3, spd: 1.8, swing: 0.8 },
+    { t: 'pendulum', x: 46, y: 3, len: 2.5, spd: 1.5, swing: 0.9 },
+    { t: 'hammer', x: 52, y: 2, len: 2.5, spd: 2.5 },
+    { t: 'hammer', x: 56, y: -2, len: 2.5, spd: -2.5 },
+    { t: 'star', x: 54, y: 0 },
+    { t: 'wall', x: 62, gapY: 1, gapH: 2 },
+    { t: 'wall', x: 66, gapY: -1.5, gapH: 2 },
+    { t: 'spikewall', x: 72, y: 0, scale: 1, rangeX: 0, rangeY: 2.5, spd: 2 },
+    { t: 'coin', x: 76, y: 0 }, { t: 'coin', x: 77, y: 0 },
+    { t: 'spikeball', x: 82, y: 0, range: 3, spd: 2 },
+    { t: 'coin', x: 86, y: 0 },
+    { t: 'finish', x: 92 },
+  ]},
+  { name: "Razor Pass", speed: 6.8, bgIdx: 3, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'wall', x: 10, gapY: 2, gapH: 2 },
+    { t: 'wall', x: 14, gapY: -2, gapH: 2 },
+    { t: 'wall', x: 18, gapY: 0.5, gapH: 2 },
+    { t: 'star', x: 14, y: 2 },
+    { t: 'sawblade', x: 24, y: 0, range: 3, spd: 2.5 },
+    { t: 'spikeroller', x: 30, y: 2, range: 2.5, spd: 2 },
+    { t: 'coin', x: 34, y: -1 }, { t: 'coin', x: 35, y: 0 },
+    { t: 'mover', x: 40, y: 0, range: 3, spd: 2.5, w: 0.6, h: 7 },
+    { t: 'mover', x: 44, y: 0, range: 3, spd: -2.5, w: 0.6, h: 7 },
+    { t: 'pendulum', x: 50, y: 3.5, len: 3.5, spd: 1.5, swing: 0.9 },
+    { t: 'star', x: 48, y: -3 },
+    { t: 'saw_trap', x: 56, y: 0, rangeX: 2, rangeY: 0, spd: 2, spin: 1.5 },
+    { t: 'wall', x: 62, gapY: -0.5, gapH: 2 },
+    { t: 'hammer', x: 68, y: 0, len: 3, spd: 2.5 },
+    { t: 'spikeball', x: 74, y: 1, range: 2.5, spd: 2.5 },
+    { t: 'coin', x: 78, y: 0 }, { t: 'coin', x: 79, y: 0 },
+    { t: 'finish', x: 86 },
+  ]},
+  { name: "Kitchen Sink", speed: 6.8, bgIdx: 3, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'saw_trap', x: 10, y: 0, rangeX: 0, rangeY: 0, spd: 2, spin: 2 },
+    { t: 'pendulum', x: 16, y: 3, len: 2.5, spd: 1.8, swing: 0.8 },
+    { t: 'wall', x: 22, gapY: 1, gapH: 2 },
+    { t: 'star', x: 20, y: -2.5 },
+    { t: 'crate', x: 28, y: -1, scale: 1.5 },
+    { t: 'pipe_straight', x: 28, y: 1 },
+    { t: 'pipe_end', x: 28, y: 2.5 },
+    { t: 'hammer', x: 34, y: 2, len: 2.5, spd: 2.5 },
+    { t: 'spikeroller', x: 40, y: 0, range: 2, spd: 2 },
+    { t: 'coin', x: 44, y: 0 }, { t: 'coin', x: 45, y: 0 },
+    { t: 'spikewall', x: 50, y: 0, scale: 1, rangeX: 2, rangeY: 0, spd: 2 },
+    { t: 'sawblade', x: 56, y: 2, range: 2.5, spd: 2.5 },
+    { t: 'star', x: 54, y: -3 },
+    { t: 'spinner', x: 62, y: 0, len: 3, spd: -2.5 },
+    { t: 'mover', x: 68, y: 0, range: 3, spd: 2.5, w: 0.6, h: 7 },
+    { t: 'saw_trap_long', x: 74, y: 0, rangeX: 0, rangeY: 2, spd: 2, w: 1.3 },
+    { t: 'coin', x: 78, y: 0 },
+    { t: 'pendulum', x: 84, y: 3.5, len: 3, spd: 1.5, swing: 0.9 },
+    { t: 'coin', x: 88, y: 0 },
+    { t: 'finish', x: 95 },
+  ]},
+  { name: "Speed Demon", speed: 7, bgIdx: 4, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'spinner', x: 10, y: 0, len: 3, spd: 3 },
+    { t: 'sawblade', x: 16, y: 1, range: 2.5, spd: 3 },
+    { t: 'sawblade', x: 20, y: -1, range: 2.5, spd: -3 },
+    { t: 'wall', x: 24, gapY: 0, gapH: 2 },
+    { t: 'star', x: 22, y: 3 },
+    { t: 'hammer', x: 30, y: 2, len: 3, spd: 2.5 },
+    { t: 'pendulum', x: 36, y: 3.5, len: 3, spd: 2, swing: 0.9 },
+    { t: 'coin', x: 40, y: 0 }, { t: 'coin', x: 41, y: 0 },
+    { t: 'saw_trap_double', x: 46, y: 0, rangeX: 2, rangeY: 0, spd: 2.5, spin: 1.5 },
+    { t: 'spikeball', x: 52, y: 0, range: 3, spd: 2.5 },
+    { t: 'wall', x: 58, gapY: -1, gapH: 1.8 },
+    { t: 'wall', x: 62, gapY: 1.5, gapH: 1.8 },
+    { t: 'star', x: 60, y: 0 },
+    { t: 'spikewall', x: 68, y: 0, scale: 1, rangeX: 2, rangeY: 0, spd: 2.5 },
+    { t: 'hammer', x: 74, y: -2, len: 2.5, spd: 3 },
+    { t: 'sawblade', x: 80, y: 1, range: 2, spd: 3 },
+    { t: 'coin', x: 84, y: 0 },
+    { t: 'spinner', x: 90, y: 0, len: 3, spd: -3 },
+    { t: 'coin', x: 94, y: 0 },
     { t: 'finish', x: 100 },
   ]},
-  { name: "Inferno Forge", speed: 6.5, bgIdx: 1, elements: [
-    { t: 'coin', x: 5, y: 0 }, { t: 'coin', x: 6, y: 0 },
-    { t: 'sawblade', x: 10, y: 1, range: 2, spd: 2.5 },
-    { t: 'sawblade', x: 14, y: -1, range: 2, spd: -2.5 },
-    { t: 'wall', x: 18, gapY: 0, gapH: 2 },
-    { t: 'star', x: 16, y: 3.5 },
-    { t: 'hammer', x: 24, y: 2, len: 2.5, spd: 2.5 },
-    { t: 'hammer', x: 28, y: -2, len: 2.5, spd: -2.5 },
-    { t: 'coin', x: 26, y: 0 }, { t: 'coin', x: 27, y: 0 },
-    { t: 'spinner', x: 34, y: 0, len: 3, spd: 3 },
-    { t: 'spikeball', x: 38, y: 2, range: 3, spd: 2 },
-    { t: 'spikeball', x: 42, y: -2, range: 3, spd: -2 },
-    { t: 'coin', x: 40, y: 0 },
-    { t: 'wall', x: 46, gapY: 1, gapH: 1.8 },
-    { t: 'wall', x: 50, gapY: -1, gapH: 1.8 },
-    { t: 'star', x: 48, y: 0 },
-    { t: 'sawblade', x: 56, y: 0, range: 3.5, spd: 2 },
-    { t: 'mover', x: 60, y: 0, range: 3, spd: 2.5, w: 0.6, h: 7 },
-    { t: 'mover', x: 64, y: 0, range: 3, spd: -2.5, w: 0.6, h: 7 },
-    { t: 'coin', x: 62, y: 3 }, { t: 'coin', x: 63, y: 3 },
-    { t: 'hammer', x: 70, y: 0, len: 3, spd: 2 },
-    { t: 'wall', x: 76, gapY: 0, gapH: 1.8 },
-    { t: 'spikeball', x: 80, y: 0, range: 3, spd: 2.5 },
-    { t: 'star', x: 84, y: -3.5 },
-    { t: 'coin', x: 88, y: 0 }, { t: 'coin', x: 89, y: 0 },
-    { t: 'sawblade', x: 94, y: 1, range: 2, spd: 3 },
-    { t: 'coin', x: 98, y: 0 },
-    { t: 'finish', x: 105 },
-  ]},
-  { name: "Storm Citadel", speed: 7, bgIdx: 2, elements: [
+  { name: "Chain Gang", speed: 7, bgIdx: 4, elements: [
     { t: 'coin', x: 5, y: 0 },
-    { t: 'wall', x: 10, gapY: 2, gapH: 1.8 },
+    { t: 'pendulum', x: 10, y: 3, len: 3, spd: 1.8, swing: 0.9 },
+    { t: 'pendulum', x: 16, y: 3.5, len: 3.5, spd: 1.5, swing: 0.8 },
+    { t: 'pendulum', x: 22, y: 3, len: 2.5, spd: 2, swing: 0.7 },
+    { t: 'star', x: 16, y: -2 },
+    { t: 'wall', x: 28, gapY: 0, gapH: 2 },
+    { t: 'saw_trap', x: 34, y: 0, rangeX: 0, rangeY: 2, spd: 2 },
+    { t: 'coin', x: 38, y: 0 }, { t: 'coin', x: 39, y: 0 },
+    { t: 'pendulum', x: 44, y: 3, len: 3, spd: 2, swing: 1 },
+    { t: 'hammer', x: 50, y: 2, len: 2.5, spd: 2.5 },
+    { t: 'pendulum', x: 56, y: 3.5, len: 3.5, spd: 1.5, swing: 0.9 },
+    { t: 'star', x: 53, y: -3 },
+    { t: 'spikeball', x: 62, y: 0, range: 3, spd: 2 },
+    { t: 'wall', x: 68, gapY: -1, gapH: 2 },
+    { t: 'pendulum', x: 74, y: 3, len: 3, spd: 1.8, swing: 0.9 },
+    { t: 'sawblade', x: 80, y: -1, range: 2, spd: 2.5 },
+    { t: 'coin', x: 84, y: 0 },
+    { t: 'finish', x: 90 },
+  ]},
+  { name: "Narrow Escape", speed: 7, bgIdx: 4, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'wall', x: 10, gapY: 2.5, gapH: 1.8 },
     { t: 'wall', x: 13, gapY: -2, gapH: 1.8 },
     { t: 'wall', x: 16, gapY: 0, gapH: 1.8 },
-    { t: 'star', x: 13, y: 2.5 },
-    { t: 'sawblade', x: 22, y: 0, range: 3, spd: 2.5 },
-    { t: 'hammer', x: 26, y: 2, len: 2.5, spd: 3 },
-    { t: 'spikeball', x: 30, y: -1, range: 3, spd: 2 },
-    { t: 'coin', x: 28, y: -3 }, { t: 'coin', x: 29, y: -3 },
-    { t: 'spinner', x: 36, y: 0, len: 3.5, spd: -3 },
-    { t: 'spinner', x: 40, y: 1, len: 2, spd: 3.5 },
-    { t: 'spinner', x: 44, y: -1, len: 2, spd: -3.5 },
-    { t: 'star', x: 42, y: 3.5 },
-    { t: 'mover', x: 50, y: 0, range: 3.5, spd: 2.5, w: 0.6, h: 7 },
-    { t: 'sawblade', x: 54, y: 2, range: 2, spd: 3 },
-    { t: 'sawblade', x: 58, y: -2, range: 2, spd: -3 },
-    { t: 'coin', x: 56, y: 0 },
-    { t: 'hammer', x: 64, y: 0, len: 3, spd: 2.5 },
-    { t: 'wall', x: 70, gapY: -0.5, gapH: 1.8 },
-    { t: 'spikeball', x: 74, y: 1, range: 2.5, spd: 2.5 },
-    { t: 'spikeball', x: 78, y: -1, range: 2.5, spd: -2.5 },
-    { t: 'coin', x: 76, y: 3 }, { t: 'coin', x: 77, y: 3 },
-    { t: 'wall', x: 84, gapY: 1, gapH: 1.8 },
-    { t: 'sawblade', x: 88, y: 0, range: 3, spd: 3 },
-    { t: 'hammer', x: 94, y: 2, len: 2.5, spd: 3 },
-    { t: 'star', x: 96, y: -3 },
-    { t: 'coin', x: 100, y: 0 }, { t: 'coin', x: 101, y: 0 },
-    { t: 'finish', x: 110 },
+    { t: 'wall', x: 19, gapY: 2, gapH: 1.8 },
+    { t: 'star', x: 14.5, y: 2.5 },
+    { t: 'spinner', x: 25, y: 0, len: 3, spd: 3 },
+    { t: 'mover', x: 31, y: 0, range: 3.5, spd: 3, w: 0.6, h: 7 },
+    { t: 'coin', x: 35, y: 2 }, { t: 'coin', x: 36, y: 2 },
+    { t: 'saw_trap', x: 42, y: 0, rangeX: 2, rangeY: 0, spd: 2.5, spin: 2 },
+    { t: 'pendulum', x: 48, y: 3, len: 3, spd: 2, swing: 1 },
+    { t: 'wall', x: 54, gapY: -1.5, gapH: 1.8 },
+    { t: 'star', x: 58, y: 3 },
+    { t: 'spikewall', x: 62, y: 0, scale: 1, rangeX: 0, rangeY: 2.5, spd: 2.5 },
+    { t: 'hammer', x: 68, y: 2, len: 3, spd: 2.5 },
+    { t: 'hammer', x: 72, y: -2, len: 3, spd: -2.5 },
+    { t: 'coin', x: 76, y: 0 },
+    { t: 'sawblade', x: 82, y: 0, range: 3, spd: 3 },
+    { t: 'coin', x: 86, y: 0 },
+    { t: 'finish', x: 92 },
   ]},
-  { name: "The Gauntlet", speed: 7.5, bgIdx: 0, elements: [
+  { name: "Storm Citadel", speed: 7.2, bgIdx: 4, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'saw_trap_long', x: 10, y: 1, rangeX: 2, rangeY: 0, spd: 2, w: 1.5 },
+    { t: 'saw_trap_long', x: 16, y: -1, rangeX: 2, rangeY: 0, spd: -2, w: 1.5 },
+    { t: 'wall', x: 22, gapY: 0, gapH: 1.8 },
+    { t: 'star', x: 20, y: 3.5 },
+    { t: 'pendulum', x: 28, y: 3.5, len: 3.5, spd: 2, swing: 0.9 },
+    { t: 'hammer', x: 34, y: 2, len: 2.5, spd: 3 },
+    { t: 'spikeball', x: 38, y: -1, range: 3, spd: 2 },
+    { t: 'coin', x: 42, y: 0 },
+    { t: 'spinner', x: 48, y: 0, len: 3, spd: -3 },
+    { t: 'spikewall', x: 54, y: 0, scale: 1, rangeX: 2, rangeY: 0, spd: 2.5 },
+    { t: 'wall', x: 60, gapY: 1.5, gapH: 1.8 },
+    { t: 'wall', x: 64, gapY: -1, gapH: 1.8 },
+    { t: 'star', x: 62, y: 0 },
+    { t: 'sawblade', x: 70, y: 2, range: 2, spd: 3 },
+    { t: 'sawblade', x: 74, y: -2, range: 2, spd: -3 },
+    { t: 'saw_trap_double', x: 80, y: 0, rangeX: 0, rangeY: 2, spd: 2, spin: 2 },
+    { t: 'coin', x: 84, y: 0 },
+    { t: 'pendulum', x: 90, y: 3, len: 3, spd: 1.8, swing: 1 },
+    { t: 'coin', x: 94, y: 0 },
+    { t: 'finish', x: 100 },
+  ]},
+  { name: "Wrecking Yard", speed: 7.2, bgIdx: 4, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'hammer', x: 10, y: 2, len: 3, spd: 2.5, swing: 1.3 },
+    { t: 'hammer', x: 14, y: -2, len: 3, spd: -2.5, swing: 1.3 },
+    { t: 'hammer', x: 18, y: 2, len: 2.5, spd: 3, swing: 1 },
+    { t: 'star', x: 14, y: 0 },
+    { t: 'wall', x: 24, gapY: 0, gapH: 1.8 },
+    { t: 'pendulum', x: 30, y: 3.5, len: 3, spd: 2, swing: 1 },
+    { t: 'saw_trap', x: 36, y: 0, rangeX: 2.5, rangeY: 0, spd: 2, spin: 2 },
+    { t: 'coin', x: 40, y: 0 },
+    { t: 'crate', x: 46, y: -2, scale: 1.5 },
+    { t: 'crate', x: 46, y: 0, scale: 1.5 },
+    { t: 'crate', x: 46, y: 2, scale: 1.5 },
+    { t: 'sawblade', x: 52, y: 0, range: 3, spd: 3 },
+    { t: 'spikeroller', x: 58, y: 2, range: 2.5, spd: 2.5 },
+    { t: 'star', x: 56, y: -3 },
+    { t: 'spinner', x: 64, y: 0, len: 3, spd: 3.5 },
+    { t: 'mover', x: 70, y: 0, range: 3, spd: 3, w: 0.6, h: 7 },
+    { t: 'hammer', x: 76, y: 0, len: 3, spd: 3 },
+    { t: 'coin', x: 80, y: 0 },
+    { t: 'pendulum', x: 86, y: 3, len: 3, spd: 2, swing: 1 },
+    { t: 'coin', x: 90, y: 0 },
+    { t: 'finish', x: 96 },
+  ]},
+  { name: "Death March", speed: 7.5, bgIdx: 5, elements: [
     { t: 'coin', x: 5, y: 0 },
     { t: 'sawblade', x: 10, y: 1, range: 3, spd: 3 },
     { t: 'sawblade', x: 14, y: -1, range: 3, spd: -3 },
+    { t: 'wall', x: 18, gapY: 0, gapH: 1.8 },
+    { t: 'pendulum', x: 24, y: 3.5, len: 3, spd: 2, swing: 1 },
+    { t: 'saw_trap_double', x: 30, y: 0, rangeX: 2, rangeY: 0, spd: 2.5, spin: 2 },
+    { t: 'star', x: 28, y: -3 },
+    { t: 'hammer', x: 36, y: 2, len: 3, spd: 3 },
+    { t: 'spikewall', x: 42, y: 0, scale: 1, rangeX: 0, rangeY: 3, spd: 2 },
+    { t: 'coin', x: 46, y: 0 },
+    { t: 'spinner', x: 52, y: 0, len: 3.5, spd: -3 },
+    { t: 'spikeball', x: 58, y: 2, range: 3, spd: 3 },
+    { t: 'spikeball', x: 62, y: -2, range: 3, spd: -3 },
+    { t: 'wall', x: 66, gapY: 1, gapH: 1.6 },
+    { t: 'star', x: 64, y: 0 },
+    { t: 'pendulum', x: 72, y: 3.5, len: 3.5, spd: 2, swing: 1 },
+    { t: 'sawblade', x: 78, y: 0, range: 3, spd: 3 },
+    { t: 'saw_trap', x: 84, y: 1, rangeX: 0, rangeY: 2, spd: 2.5 },
+    { t: 'coin', x: 88, y: 0 },
+    { t: 'hammer', x: 94, y: -2, len: 3, spd: 3, swing: 1.3 },
+    { t: 'coin', x: 98, y: 0 },
+    { t: 'finish', x: 105 },
+  ]},
+  { name: "Chaos Engine", speed: 7.5, bgIdx: 5, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'saw_trap_long', x: 10, y: 0, rangeX: 3, rangeY: 0, spd: 2, w: 1.5, spin: 2 },
+    { t: 'wall', x: 16, gapY: 2, gapH: 1.6 },
+    { t: 'wall', x: 19, gapY: -2, gapH: 1.6 },
+    { t: 'star', x: 17, y: 0 },
+    { t: 'pendulum', x: 25, y: 3.5, len: 3.5, spd: 2, swing: 1 },
+    { t: 'spinner', x: 31, y: 1, len: 2.5, spd: 3.5 },
+    { t: 'spinner', x: 35, y: -1, len: 2.5, spd: -3.5 },
+    { t: 'coin', x: 33, y: 3.5 },
+    { t: 'saw_trap_double', x: 41, y: 1, rangeX: 0, rangeY: 2, spd: 2.5, spin: 1.5 },
+    { t: 'hammer', x: 47, y: 2, len: 3, spd: 3 },
+    { t: 'hammer', x: 51, y: -2, len: 3, spd: -3 },
+    { t: 'spikeroller', x: 57, y: 0, range: 3, spd: 2.5 },
+    { t: 'star', x: 55, y: -3.5 },
+    { t: 'mover', x: 63, y: 0, range: 3.5, spd: 3, w: 0.6, h: 7 },
+    { t: 'pendulum', x: 69, y: 3, len: 3, spd: 2, swing: 1 },
+    { t: 'spikewall', x: 75, y: 0, scale: 1, rangeX: 2, rangeY: 0, spd: 2.5 },
+    { t: 'wall', x: 81, gapY: 0, gapH: 1.6 },
+    { t: 'sawblade', x: 87, y: 0, range: 3, spd: 3 },
+    { t: 'coin', x: 91, y: 0 },
+    { t: 'saw_trap', x: 96, y: 0, rangeX: 2, rangeY: 0, spd: 3, spin: 2.5 },
+    { t: 'coin', x: 100, y: 0 },
+    { t: 'finish', x: 108 },
+  ]},
+  { name: "Iron Maiden", speed: 7.8, bgIdx: 5, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'spikewall', x: 10, y: 1, scale: 1.2, rangeX: 0, rangeY: 2, spd: 2.5 },
+    { t: 'spikewall', x: 14, y: -1, scale: 1.2, rangeX: 0, rangeY: 2, spd: -2.5 },
     { t: 'wall', x: 18, gapY: 0, gapH: 1.6 },
-    { t: 'hammer', x: 22, y: 2, len: 3, spd: 3 },
-    { t: 'hammer', x: 26, y: -2, len: 3, spd: -3 },
-    { t: 'star', x: 24, y: 0 },
-    { t: 'spikeball', x: 32, y: 0, range: 3.5, spd: 2.5 },
-    { t: 'spinner', x: 36, y: 1, len: 3, spd: 3.5 },
-    { t: 'spinner', x: 40, y: -1, len: 3, spd: -3.5 },
-    { t: 'coin', x: 38, y: 3.5 }, { t: 'coin', x: 39, y: 3.5 },
-    { t: 'wall', x: 44, gapY: 2, gapH: 1.5 },
-    { t: 'wall', x: 47, gapY: -2, gapH: 1.5 },
-    { t: 'wall', x: 50, gapY: 0.5, gapH: 1.5 },
-    { t: 'sawblade', x: 54, y: 0, range: 3.5, spd: 3 },
-    { t: 'mover', x: 60, y: 0, range: 3.5, spd: 3, w: 0.6, h: 7 },
-    { t: 'mover', x: 64, y: 0, range: 3.5, spd: -3, w: 0.6, h: 7 },
-    { t: 'star', x: 62, y: 0 },
-    { t: 'hammer', x: 70, y: 0, len: 3, spd: 3 },
-    { t: 'spikeball', x: 74, y: 2, range: 3, spd: 3 },
-    { t: 'spikeball', x: 78, y: -2, range: 3, spd: -3 },
-    { t: 'coin', x: 76, y: 0 },
-    { t: 'wall', x: 82, gapY: 0, gapH: 1.5 },
-    { t: 'sawblade', x: 86, y: 2, range: 2.5, spd: 3.5 },
-    { t: 'sawblade', x: 90, y: -2, range: 2.5, spd: -3.5 },
-    { t: 'spinner', x: 96, y: 0, len: 3.5, spd: 3.5 },
-    { t: 'hammer', x: 102, y: 2, len: 3, spd: 3 },
-    { t: 'hammer', x: 106, y: -2, len: 3, spd: -3 },
-    { t: 'star', x: 104, y: 0 },
-    { t: 'coin', x: 110, y: 0 }, { t: 'coin', x: 111, y: 0 },
+    { t: 'star', x: 16, y: 3 },
+    { t: 'pendulum', x: 24, y: 3.5, len: 3.5, spd: 2, swing: 1.1 },
+    { t: 'saw_trap', x: 30, y: 0, rangeX: 2, rangeY: 2, spd: 2.5 },
+    { t: 'spinner', x: 36, y: 0, len: 3, spd: 3.5 },
+    { t: 'coin', x: 40, y: 0 },
+    { t: 'hammer', x: 46, y: 2, len: 3, spd: 3, swing: 1.3 },
+    { t: 'sawblade', x: 52, y: -1, range: 3, spd: 3 },
+    { t: 'wall', x: 56, gapY: 1.5, gapH: 1.6 },
+    { t: 'wall', x: 60, gapY: -1.5, gapH: 1.6 },
+    { t: 'star', x: 58, y: 0 },
+    { t: 'pendulum', x: 66, y: 3, len: 3, spd: 2, swing: 1 },
+    { t: 'saw_trap_double', x: 72, y: 0, rangeX: 0, rangeY: 2.5, spd: 2.5, spin: 2 },
+    { t: 'spikeball', x: 78, y: 1, range: 3, spd: 3 },
+    { t: 'spikeball', x: 82, y: -1, range: 3, spd: -3 },
+    { t: 'coin', x: 86, y: 0 },
+    { t: 'spikewall', x: 92, y: 0, scale: 1.2, rangeX: 2.5, rangeY: 0, spd: 3 },
+    { t: 'hammer', x: 98, y: -2, len: 3, spd: 3 },
+    { t: 'coin', x: 102, y: 0 },
+    { t: 'finish', x: 110 },
+  ]},
+  { name: "Final Countdown", speed: 8, bgIdx: 5, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'spinner', x: 10, y: 0, len: 3.5, spd: 3.5 },
+    { t: 'wall', x: 15, gapY: 2, gapH: 1.5 },
+    { t: 'wall', x: 18, gapY: -2, gapH: 1.5 },
+    { t: 'wall', x: 21, gapY: 0.5, gapH: 1.5 },
+    { t: 'star', x: 18, y: 2 },
+    { t: 'pendulum', x: 27, y: 3.5, len: 3.5, spd: 2, swing: 1.1 },
+    { t: 'saw_trap_long', x: 33, y: 0, rangeX: 2.5, rangeY: 0, spd: 2.5, w: 1.5, spin: 2.5 },
+    { t: 'hammer', x: 39, y: 2, len: 3, spd: 3 },
+    { t: 'hammer', x: 43, y: -2, len: 3, spd: -3 },
+    { t: 'coin', x: 41, y: 0 },
+    { t: 'sawblade', x: 49, y: 2, range: 2.5, spd: 3.5 },
+    { t: 'sawblade', x: 53, y: -2, range: 2.5, spd: -3.5 },
+    { t: 'spikewall', x: 58, y: 0, scale: 1.2, rangeX: 0, rangeY: 3, spd: 2.5 },
+    { t: 'star', x: 56, y: 0 },
+    { t: 'pendulum', x: 64, y: 3, len: 3, spd: 2, swing: 1 },
+    { t: 'mover', x: 70, y: 0, range: 3.5, spd: 3, w: 0.5, h: 8 },
+    { t: 'saw_trap_double', x: 76, y: 1, rangeX: 0, rangeY: 2, spd: 3, spin: 2 },
+    { t: 'spinner', x: 82, y: 0, len: 3, spd: -3.5 },
+    { t: 'spikeball', x: 88, y: 0, range: 3, spd: 3 },
+    { t: 'coin', x: 92, y: 0 },
+    { t: 'wall', x: 96, gapY: 0, gapH: 1.5 },
+    { t: 'pendulum', x: 102, y: 3.5, len: 3.5, spd: 2, swing: 1.1 },
+    { t: 'hammer', x: 108, y: 0, len: 3, spd: 3, swing: 1.3 },
+    { t: 'coin', x: 112, y: 0 },
     { t: 'finish', x: 120 },
+  ]},
+  { name: "The Gauntlet", speed: 8.5, bgIdx: 5, elements: [
+    { t: 'coin', x: 5, y: 0 },
+    { t: 'saw_trap', x: 10, y: 0, rangeX: 2, rangeY: 2, spd: 2, spin: 3 },
+    { t: 'pendulum', x: 16, y: 3.5, len: 3.5, spd: 2, swing: 1.2 },
+    { t: 'wall', x: 21, gapY: 2, gapH: 1.5 },
+    { t: 'wall', x: 24, gapY: -2, gapH: 1.5 },
+    { t: 'wall', x: 27, gapY: 0, gapH: 1.5 },
+    { t: 'star', x: 24, y: 2 },
+    { t: 'hammer', x: 33, y: 2, len: 3, spd: 3, swing: 1.3 },
+    { t: 'hammer', x: 37, y: -2, len: 3, spd: -3, swing: 1.3 },
+    { t: 'spinner', x: 43, y: 0, len: 3.5, spd: 3.5 },
+    { t: 'sawblade', x: 49, y: 2, range: 3, spd: 3.5 },
+    { t: 'sawblade', x: 53, y: -2, range: 3, spd: -3.5 },
+    { t: 'coin', x: 51, y: 0 },
+    { t: 'saw_trap_long', x: 59, y: 0, rangeX: 2.5, rangeY: 0, spd: 2.5, w: 1.5, spin: 2.5 },
+    { t: 'pendulum', x: 65, y: 3.5, len: 3, spd: 2, swing: 1.1 },
+    { t: 'spikewall', x: 71, y: 0, scale: 1.3, rangeX: 0, rangeY: 3, spd: 3 },
+    { t: 'star', x: 69, y: -3.5 },
+    { t: 'mover', x: 77, y: 0, range: 3.5, spd: 3.5, w: 0.5, h: 8 },
+    { t: 'spikeball', x: 83, y: 1, range: 3, spd: 3 },
+    { t: 'spikeball', x: 87, y: -1, range: 3, spd: -3 },
+    { t: 'wall', x: 91, gapY: 0, gapH: 1.5 },
+    { t: 'saw_trap_double', x: 97, y: 0, rangeX: 2, rangeY: 2, spd: 3, spin: 2 },
+    { t: 'pendulum', x: 103, y: 3.5, len: 3.5, spd: 2, swing: 1.2 },
+    { t: 'spinner', x: 109, y: 0, len: 3.5, spd: -4 },
+    { t: 'hammer', x: 115, y: 2, len: 3, spd: 3.5, swing: 1.3 },
+    { t: 'hammer', x: 119, y: -2, len: 3, spd: -3.5, swing: 1.3 },
+    { t: 'star', x: 117, y: 0 },
+    { t: 'coin', x: 123, y: 0 },
+    { t: 'finish', x: 130 },
   ]},
 ];
 
@@ -1928,9 +2457,13 @@ function animate(now) {
           const newY = a.baseY + Math.sin(a.time * a.spd) * a.range;
           obj.children.forEach(c => { if (c.position) c.position.y = newY; });
         }
+      } else if (a.type === 'pendulum') {
+        // children[0] = fixed top mount, children[1] = pivot group
+        const pivot = obj.children[1];
+        if (pivot) pivot.rotation.z = Math.sin(a.time * a.spd) * a.swing;
       } else if (a.type === 'hammer') {
         const cycle = (a.time * a.spd) % (Math.PI * 2);
-        obj.children[0] && (obj.children[0].rotation.z = Math.sin(cycle) * 1.2);
+        obj.children[0] && (obj.children[0].rotation.z = Math.sin(cycle) * a.swing);
       } else if (a.type === 'spikeroller') {
         // Wrapper is obj.children[0], asset is inside wrapper
         const wrapper = obj.children[0];
@@ -1957,6 +2490,12 @@ function animate(now) {
               child.rotation.y += dt * a.spd * 4;
             }
           });
+          // Spin whole asset around Z if spin is set
+          if (a.spin) {
+            if (!a.angle) a.angle = 0;
+            a.angle += a.spin * dt;
+            asset.rotation.y = a.angle;
+          }
         }
         // Move whole group if range set
         const dx = a.rangeX ? Math.sin(a.time * a.spd) * a.rangeX : 0;
