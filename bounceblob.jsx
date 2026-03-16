@@ -958,6 +958,7 @@ const GAME_ASSETS = {
   saw_trap: { name: 'saw_trap', color: 'red' },
   saw_trap_double: { name: 'saw_trap_double', color: 'red' },
   saw_trap_long: { name: 'saw_trap_long', color: 'red' },
+  floor_tile: { name: 'floor_wood_2x6', color: 'neutral' },
 };
 
 async function preloadGameAssets() {
@@ -1562,23 +1563,32 @@ function drawAsteroid(ctx, x, y, r, rng) {
 }
 
 // ─── Build parallax for a segment ───
-function buildParallaxSegment(group, offsetX, segLen, theme, bgI) {
+function buildParallaxSegment(group, offsetX, segLen, theme, bgI, segIdx) {
   const worldName = WORLD_NAMES[bgI] || 'forest';
   const layers = ['sky', 'far', 'mid', 'near'];
-  const zPositions = [-18, -14, -10, -6];
-  const heights = [30, 15, 12, 10];
+  //                    sky   far   mid   near
+  const zPositions = [ -18,  -14,  -10,   -5];
+  const heights =    [  40,   20,   16,    8];
+  const yOffsets =   [   0,  4.0,  -1.0, -4.0]; // vertical center of each plane
+  const flipX = (segIdx % 2 === 1); // mirror every other segment for seamless tiling
 
   layers.forEach((layer, i) => {
-    // Try loading an image first
     const imgTex = getBgImage(worldName, layer);
 
     let material;
     if (imgTex) {
+      // Clone texture so we can flip independently per segment
+      const tex = imgTex.clone();
+      tex.needsUpdate = true;
+      if (flipX) {
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.repeat.x = -1;
+        tex.offset.x = 1;
+      }
       material = new THREE.MeshBasicMaterial({
-        map: imgTex, transparent: layer !== 'sky', depthWrite: false
+        map: tex, transparent: layer !== 'sky', depthWrite: false
       });
     } else {
-      // Generate procedural canvas texture
       const canvasTex = generateProceduralLayer(512, 256, bgI, layer, offsetX * 0.1 + i * 100);
       material = new THREE.MeshBasicMaterial({
         map: canvasTex, transparent: layer !== 'sky', depthWrite: false
@@ -1586,10 +1596,11 @@ function buildParallaxSegment(group, offsetX, segLen, theme, bgI) {
     }
 
     const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(segLen + 2, heights[i]),
+      new THREE.PlaneGeometry(segLen + 20, heights[i]),
       material
     );
-    plane.position.set(offsetX + segLen / 2, layer === 'sky' ? 2 : Y_MIN + heights[i] * 0.35, zPositions[i]);
+    plane.position.set(offsetX + segLen / 2, yOffsets[i], zPositions[i]);
+    plane.frustumCulled = false;
     group.add(plane);
   });
 
@@ -1640,30 +1651,63 @@ function buildWorld(scene, existingGroup) {
     const segLen = finishX + LEVEL_GAP;
     const bgI = levelData.bgIdx;
 
-    // Ground segment
-    const segGround = new THREE.Mesh(
-      new THREE.BoxGeometry(segLen, 0.4, 8),
-      mat(PAL.ground[bgI], 0x111111)
+    // Ground segment — textured earth with grass edge
+    const groundColors = [0x4A6B2A, 0xC4A050, 0x1A2A1A, 0xD8E8F0, 0x2A1508, 0x1A1A3E];
+    const dirtColors =   [0x6B4226, 0xA08040, 0x1A1520, 0x8098A8, 0x1A0A04, 0x0A0A20];
+    const grassColors =  [0x5AAA30, 0xC4A040, 0x2A4A2A, 0xE8F0F8, 0x3A1A08, 0x151535];
+
+    // Dirt/earth base (thick, extends below screen)
+    const earthGround = new THREE.Mesh(
+      new THREE.BoxGeometry(segLen + 4, 3, 8),
+      new THREE.MeshPhongMaterial({ color: dirtColors[bgI] || dirtColors[0] })
     );
-    segGround.position.set(offset + segLen / 2, Y_MIN - 0.5, 0);
-    group.add(segGround);
+    earthGround.position.set(offset + segLen / 2, Y_MIN - 1.8, 0);
+    group.add(earthGround);
+
+    // Grass/surface layer
+    const grassTop = new THREE.Mesh(
+      new THREE.BoxGeometry(segLen + 4, 0.25, 8.1),
+      new THREE.MeshPhongMaterial({ color: grassColors[bgI] || grassColors[0] })
+    );
+    grassTop.position.set(offset + segLen / 2, Y_MIN - 0.2, 0);
+    group.add(grassTop);
+
+    // Diorama edge decorations — small bushes/rocks along ground line
+    const bushColor = bgI === 3 ? 0xE0EEF0 : bgI === 4 ? 0x2A1208 : bgI === 5 ? 0x1A1A40 : 0x3A8820;
+    const bushCount = Math.floor(segLen / 3);
+    for (let bi = 0; bi < bushCount; bi++) {
+      const bx = offset + 1.5 + bi * 3 + (Math.sin(bi * 7.3 + offset) * 0.8);
+      const bz = -1 + Math.sin(bi * 4.1) * 2.5; // spread across Z depth
+
+      if (bgI <= 2 || bgI === 3) {
+        // Bushes — rounded hemisphere shapes
+        const bushSize = 0.25 + Math.abs(Math.sin(bi * 3.7)) * 0.35;
+        const bushGeo = new THREE.SphereGeometry(bushSize, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.6);
+        const bushMat = new THREE.MeshPhongMaterial({ color: bushColor });
+        const bush = new THREE.Mesh(bushGeo, bushMat);
+        bush.position.set(bx, Y_MIN - 0.1, bz);
+        group.add(bush);
+      } else {
+        // Rocks for volcano/space themes
+        const rockSize = 0.2 + Math.abs(Math.sin(bi * 5.1)) * 0.3;
+        const rockGeo = new THREE.DodecahedronGeometry(rockSize, 0);
+        const rockMat = new THREE.MeshPhongMaterial({ color: bushColor });
+        const rock = new THREE.Mesh(rockGeo, rockMat);
+        rock.position.set(bx, Y_MIN - 0.05, bz);
+        rock.rotation.set(bi * 1.3, bi * 2.1, bi * 0.7);
+        group.add(rock);
+      }
+    }
 
     // Parallax background layers for this segment
     const theme = PAL.parallax[bgI] || PAL.parallax[0];
-    buildParallaxSegment(group, offset, segLen, theme, bgI);
+    buildParallaxSegment(group, offset, segLen, theme, bgI, lvlIdx);
 
-    // Level name sign (floating text marker for debug)
-    const signGeo = new THREE.BoxGeometry(4, 0.8, 0.1);
-    const signColors = [0x81C784, 0xFFCC80, 0xB39DDB, 0xB0BEC5, 0xFF8A65, 0x7986CB];
-    const sign = new THREE.Mesh(signGeo, mat(signColors[bgI] || signColors[0], 0x222222));
-    sign.position.set(offset + 2, 3.5, 1);
-    group.add(sign);
-
-    // Cannon at level start
+    // Cannon at level start (inside level boundary)
     const cannonAsset = getAsset(GAME_ASSETS.cannon.name, GAME_ASSETS.cannon.color);
     if (cannonAsset) {
       cannonAsset.scale.setScalar(0.35);
-      cannonAsset.position.set(offset - 1, Y_MIN, 0);
+      cannonAsset.position.set(offset + 1, Y_MIN, 0);
       cannonAsset.rotation.set(0.01, 1.56, 0.01);
       cannonAsset.traverse(child => {
         if (child.name && child.name.includes('barrel')) {
@@ -2477,6 +2521,16 @@ export default function BounceBlob() {
         debugMode = !debugMode;
         if (!debugMode) clearDebug();
       }
+      if (e.code === 'Escape' || e.code === 'KeyP') {
+        if (g.state === 'playing') {
+          g.state = 'paused';
+          g.holding = false;
+          setUiState('paused');
+        } else if (g.state === 'paused') {
+          g.state = 'playing';
+          setUiState('playing');
+        }
+      }
     };
     const onKeyUp = (e) => {
       if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
@@ -2775,7 +2829,7 @@ export default function BounceBlob() {
       if (g.state === 'launching') {
         g.launchTimer += dt;
         const lvlIdx = g.currentLevel;
-        const cannonX = LEVEL_OFFSETS[lvlIdx] - 1;
+        const cannonX = LEVEL_OFFSETS[lvlIdx] + 1;
         const cannonTipX = cannonX + 1;
         const cannonTipY = Y_MIN + 1.8;
         // Emit smoke from cannon barrel at start
@@ -2789,7 +2843,7 @@ export default function BounceBlob() {
         const ease = 1 - Math.pow(1 - t, 3);
         const startX = cannonTipX;
         const startY = cannonTipY;
-        const endX = LEVEL_OFFSETS[lvlIdx] + 2;
+        const endX = LEVEL_OFFSETS[lvlIdx] + 4;
         const endY = 0;
         g.playerX = startX + (endX - startX) * ease;
         g.playerY = startY + (endY - startY) * ease;
@@ -2813,6 +2867,12 @@ export default function BounceBlob() {
         }
 
         particleSys.update(scene, dt);
+        renderer.render(scene, camera);
+        return;
+      }
+
+      if (g.state === 'paused') {
+        lastTime = now; // prevent huge dt jump when resuming
         renderer.render(scene, camera);
         return;
       }
@@ -3145,6 +3205,38 @@ export default function BounceBlob() {
           </div>
           <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
             Click / Space / R to restart from Lv.{currentLevel + 1}
+          </div>
+        </div>
+      )}
+
+      {/* PAUSED */}
+      {uiState === 'paused' && (
+        <div style={{ ...overlayBase, background: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ fontSize: '48px', fontWeight: 700, color: '#fff', textShadow: '0 3px 10px rgba(0,0,0,0.3)', marginBottom: '16px' }}>
+            Paused
+          </div>
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+            <button
+              onClick={() => { const g = gameRef.current; g.state = 'playing'; setUiState('playing'); }}
+              style={{ background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: '#fff', fontSize: '18px', fontFamily: font, fontWeight: 600, padding: '12px 32px', borderRadius: '12px', cursor: 'pointer' }}
+            >
+              Resume
+            </button>
+            <button
+              onClick={() => restartFromLevel(gameRef.current.currentLevel)}
+              style={{ background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: '#fff', fontSize: '18px', fontFamily: font, fontWeight: 600, padding: '12px 32px', borderRadius: '12px', cursor: 'pointer' }}
+            >
+              Restart Level
+            </button>
+            <button
+              onClick={() => { const g = gameRef.current; g.state = 'menu'; setUiState('menu'); }}
+              style={{ background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)', color: '#fff', fontSize: '18px', fontFamily: font, fontWeight: 600, padding: '12px 32px', borderRadius: '12px', cursor: 'pointer' }}
+            >
+              Main Menu
+            </button>
+          </div>
+          <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)' }}>
+            Press Esc or P to resume
           </div>
         </div>
       )}
