@@ -1005,6 +1005,17 @@ function createPlayer() {
   return group;
 }
 
+// ─── Cloud model cache ───
+let cloudModel = null;
+function preloadCloudModel() {
+  return new Promise(resolve => {
+    gltfLoader.load('assets/Cloud.glb', (gltf) => {
+      cloudModel = gltf.scene;
+      resolve();
+    }, undefined, () => { resolve(); });
+  });
+}
+
 // ─── Background image cache ───
 const bgImageCache = {};
 const WORLD_NAMES = ['forest', 'desert', 'night', 'winter', 'volcano', 'space'];
@@ -1568,8 +1579,8 @@ function buildParallaxSegment(group, offsetX, segLen, theme, bgI, segIdx) {
   const layers = ['sky', 'far', 'mid', 'near'];
   //                    sky   far   mid   near
   const zPositions = [ -18,  -14,  -10,   -5];
-  const heights =    [  40,   20,   16,    8];
-  const yOffsets =   [   0,  4.0,  -1.0, -4.0]; // vertical center of each plane
+  const heights =    [  40,   14,   10,    6];
+  const yOffsets =   [  -3,  2.0,   0.0, -3.0]; // vertical center of each plane
   const flipX = (segIdx % 2 === 1); // mirror every other segment for seamless tiling
 
   layers.forEach((layer, i) => {
@@ -1603,6 +1614,32 @@ function buildParallaxSegment(group, offsetX, segLen, theme, bgI, segIdx) {
     plane.frustumCulled = false;
     group.add(plane);
   });
+
+  // 3D Clouds
+  if (cloudModel && bgI !== 2 && bgI !== 5) { // no clouds for night/space
+    const cloudCount = 8 + Math.floor(Math.random() * 5);
+    for (let ci = 0; ci < cloudCount; ci++) {
+      const cloud = cloudModel.clone();
+      const scale = 0.003 + Math.random() * 0.012;
+      cloud.scale.set(scale, scale * (0.6 + Math.random() * 0.4), scale);
+      cloud.position.set(
+        offsetX + Math.random() * segLen,
+        2.5 + Math.random() * 4,  // upper part of screen
+        -11 - Math.random() * 6  // spread across depth
+      );
+      cloud.rotation.y = 0; // flat side facing player (camera along -Z)
+      // Make clouds semi-transparent white
+      cloud.traverse(c => {
+        if (c.isMesh) {
+          c.material = new THREE.MeshBasicMaterial({
+            color: 0xFFFFFF, transparent: true, opacity: 0.7 + Math.random() * 0.2,
+            depthWrite: false
+          });
+        }
+      });
+      group.add(cloud);
+    }
+  }
 
   // Atmospheric particles
   const particleCount = 25;
@@ -1707,7 +1744,7 @@ function buildWorld(scene, existingGroup) {
     const cannonAsset = getAsset(GAME_ASSETS.cannon.name, GAME_ASSETS.cannon.color);
     if (cannonAsset) {
       cannonAsset.scale.setScalar(0.35);
-      cannonAsset.position.set(offset + 1, Y_MIN, 0);
+      cannonAsset.position.set(offset - LEVEL_GAP + 1, Y_MIN, 0);
       cannonAsset.rotation.set(0.01, 1.56, 0.01);
       cannonAsset.traverse(child => {
         if (child.name && child.name.includes('barrel')) {
@@ -1828,39 +1865,23 @@ function buildWorld(scene, existingGroup) {
       }
       else if (el.t === 'finish') {
         const isLast = lvlIdx === LEVELS.length - 1;
-
         if (isLast) {
-          const asset = getAsset(GAME_ASSETS.finish.name, GAME_ASSETS.finish.color);
-          if (fitAsset(asset, 3, 9, 1, ex, 0, 0)) {
-            group.add(asset);
-          } else {
-            const archLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 10, 8), mat(PAL.finish, 0x004D40));
-            archLeft.position.set(ex - 1.2, 0, 0);
-            group.add(archLeft);
-            const archRight = archLeft.clone();
-            archRight.position.set(ex + 1.2, 0, 0);
-            group.add(archRight);
-            const archTop = new THREE.Mesh(new THREE.BoxGeometry(3, 0.3, 0.5), mat(PAL.finish, 0x004D40));
-            archTop.position.set(ex, 4.5, 0);
-            group.add(archTop);
-          }
           colliders.push({ type: 'finish', x: ex });
         }
-        if (!isLast) {
-          const cpAsset = getAsset(GAME_ASSETS.finish.name, GAME_ASSETS.finish.color);
-          if (fitAsset(cpAsset, 2, 6, 0.5, ex, 0, 0)) {
-            cpAsset.traverse(c => { if (c.isMesh) { c.material.transparent = true; c.material.opacity = 0.5; } });
-            group.add(cpAsset);
-          } else {
-            const cpLeft = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.08, 0.08, 10, 6),
-              new THREE.MeshPhongMaterial({ color: PAL.finish, transparent: true, opacity: 0.4 })
+        // Dashed line at level boundary
+        const dashCount = 12;
+        const dashHeight = (Y_MAX - Y_MIN) / dashCount;
+        const dashMat = new THREE.MeshBasicMaterial({
+          color: 0xFFFFFF, transparent: true, opacity: 0.3
+        });
+        for (let di = 0; di < dashCount; di++) {
+          if (di % 2 === 0) {
+            const dash = new THREE.Mesh(
+              new THREE.BoxGeometry(0.08, dashHeight * 0.7, 0.08),
+              dashMat
             );
-            cpLeft.position.set(ex - 0.8, 0, 0);
-            group.add(cpLeft);
-            const cpRight = cpLeft.clone();
-            cpRight.position.set(ex + 0.8, 0, 0);
-            group.add(cpRight);
+            dash.position.set(ex, Y_MIN + dashHeight * (di + 0.5), 0.5);
+            group.add(dash);
           }
         }
       }
@@ -2490,7 +2511,7 @@ export default function BounceBlob() {
     let collectibles = [];
 
     // Preload KayKit assets, then rebuild world with real models
-    Promise.all([preloadGameAssets(), preloadBackgroundImages()]).then(() => {
+    Promise.all([preloadGameAssets(), preloadBackgroundImages(), preloadCloudModel()]).then(() => {
       const g = gameRef.current;
       g.needsWorldBuild = true;
     });
@@ -2829,7 +2850,7 @@ export default function BounceBlob() {
       if (g.state === 'launching') {
         g.launchTimer += dt;
         const lvlIdx = g.currentLevel;
-        const cannonX = LEVEL_OFFSETS[lvlIdx] + 1;
+        const cannonX = LEVEL_OFFSETS[lvlIdx] - LEVEL_GAP + 1;
         const cannonTipX = cannonX + 1;
         const cannonTipY = Y_MIN + 1.8;
         // Emit smoke from cannon barrel at start
