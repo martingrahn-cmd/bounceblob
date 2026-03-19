@@ -32,17 +32,17 @@ const PAL = {
   // Parallax layer colors per world [far, mid, near]
   parallax: [
     // 0: Forest - blue sky, green hills, darker trees
-    { sky1: 0x87CEEB, sky2: 0xC8E6C9, far: 0x6B9B4A, mid: 0x4A7A2E, near: 0x3A6620 },
+    { sky1: 0x87CEEB, sky2: 0xC8E6C9, far: 0x6B9B4A, mid: 0x4A7A2E, near: 0x3A6620, grassBase: 0x2D5A1E, grassTip: 0x6BBF3B },
     // 1: Desert - warm sky, sandy dunes, mesa
-    { sky1: 0xFFD180, sky2: 0xFFAB40, far: 0xD4A04A, mid: 0xC48830, near: 0xA06820 },
+    { sky1: 0xFFD180, sky2: 0xFFAB40, far: 0xD4A04A, mid: 0xC48830, near: 0xA06820, grassBase: 0x8A7A40, grassTip: 0xC4A860 },
     // 2: Night - dark sky, purple hills, dark silhouettes
-    { sky1: 0x1A1A4E, sky2: 0x0A0A2E, far: 0x2A2060, mid: 0x1A1040, near: 0x100A30 },
+    { sky1: 0x1A1A4E, sky2: 0x0A0A2E, far: 0x2A2060, mid: 0x1A1040, near: 0x100A30, grassBase: 0x1A3A1A, grassTip: 0x2A5A2A },
     // 3: Winter - pale sky, snowy mountains, icy pines
-    { sky1: 0xC5E8F7, sky2: 0xE8F4FD, far: 0xA8C8D8, mid: 0x88AAC0, near: 0x607890 },
+    { sky1: 0xC5E8F7, sky2: 0xE8F4FD, far: 0xA8C8D8, mid: 0x88AAC0, near: 0x607890, grassBase: 0xC0D8E0, grassTip: 0xE8F4F8 },
     // 4: Volcano - fiery sky, dark mountains, lava glow
-    { sky1: 0x2D1B00, sky2: 0x4A1A00, far: 0x3A2010, mid: 0x2A1508, near: 0x1A0A00 },
+    { sky1: 0x2D1B00, sky2: 0x4A1A00, far: 0x3A2010, mid: 0x2A1508, near: 0x1A0A00, grassBase: 0x2A1A08, grassTip: 0x4A3018 },
     // 5: Space - deep space, nebula, asteroid field
-    { sky1: 0x0A0A2E, sky2: 0x050520, far: 0x151540, mid: 0x0D0D30, near: 0x080820 },
+    { sky1: 0x0A0A2E, sky2: 0x050520, far: 0x151540, mid: 0x0D0D30, near: 0x080820, grassBase: 0x101030, grassTip: 0x202050 },
   ],
 };
 
@@ -955,6 +955,7 @@ const GAME_ASSETS = {
   pendulum_ball: { name: 'spikeball_hanger', color: 'neutral' },
   spikewall: { name: 'spikeblock_double_horizontal', color: 'blue' },
   arrow_sign: { name: 'signage_arrow_stand', color: 'blue' },
+  level_sign: { name: 'sign', color: 'neutral' },
   saw_trap: { name: 'saw_trap', color: 'red' },
   saw_trap_double: { name: 'saw_trap_double', color: 'red' },
   saw_trap_long: { name: 'saw_trap_long', color: 'red' },
@@ -1005,15 +1006,154 @@ function createPlayer() {
   return group;
 }
 
-// ─── Cloud model cache ───
-let cloudModel = null;
-function preloadCloudModel() {
-  return new Promise(resolve => {
-    gltfLoader.load('assets/Cloud.glb', (gltf) => {
-      cloudModel = gltf.scene;
-      resolve();
-    }, undefined, () => { resolve(); });
+// ─── Instanced Grass System ───
+const GRASS_VERT = `
+precision mediump float;
+attribute vec3 position;
+attribute vec3 offset;
+attribute vec2 halfRootAngle;
+attribute float scale;
+attribute float idx;
+uniform float time;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+varying float frc;
+varying float vIdx;
+const float PI = 3.1415;
+
+vec3 rotateByQuat(vec3 v, vec4 q) {
+  return 2.0 * cross(q.xyz, v * q.w + cross(q.xyz, v)) + v;
+}
+
+void main() {
+  frc = position.y;
+  vec3 vPos = position;
+  vPos.y *= scale;
+
+  // Root rotation
+  vec4 dir = vec4(0.0, halfRootAngle.x, 0.0, halfRootAngle.y);
+  vPos = rotateByQuat(vPos, dir);
+
+  // Wind
+  float windStrength = frc * frc;
+  float wave = sin(offset.x * 0.8 + time * 2.0) * 0.15 + sin(offset.x * 1.5 + time * 3.0) * 0.05;
+  vPos.x += wave * windStrength;
+  vPos.z += sin(offset.z * 1.2 + time * 1.5) * 0.03 * windStrength;
+
+  vPos += offset;
+  vIdx = idx;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(vPos, 1.0);
+}`;
+
+const GRASS_FRAG = `
+precision mediump float;
+varying float frc;
+varying float vIdx;
+uniform vec3 baseColor;
+uniform vec3 tipColor;
+
+void main() {
+  vec3 col = mix(baseColor * 0.6, tipColor, frc);
+  // Variation per blade
+  col = mix(col, col * 1.2, step(0.5, vIdx));
+  // Darken at root for AO
+  col *= 0.4 + 0.6 * frc;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+function createGrassStrip(segLen, offsetX, groundY, theme) {
+  const BLADE_COUNT = Math.min(Math.floor(segLen * 150), 15000);
+  const BLADE_W = 0.04;
+  const BLADE_H = 1.0;
+  const JOINTS = 3;
+
+  // Base blade geometry — a bent plane
+  const baseGeo = new THREE.PlaneGeometry(BLADE_W, BLADE_H, 1, JOINTS);
+  baseGeo.translate(0, BLADE_H / 2, 0);
+
+  // Bend the blade slightly
+  const q0 = new THREE.Quaternion();
+  const q1 = new THREE.Quaternion();
+  let angle = 0.3;
+  q0.set(Math.sin(angle / 2), 0, 0, Math.cos(angle / 2));
+  angle = 0.05;
+  q1.set(0, Math.sin(angle / 2), 0, Math.cos(angle / 2));
+  q0.multiply(q1);
+
+  const q2 = new THREE.Quaternion();
+  const v = new THREE.Vector3();
+  const posArr = baseGeo.attributes.position.array;
+  for (let i = 0; i < posArr.length; i += 3) {
+    q2.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+    v.set(posArr[i], posArr[i + 1], posArr[i + 2]);
+    const f = v.y / BLADE_H;
+    q2.slerp(q0, f);
+    v.applyQuaternion(q2);
+    posArr[i] = v.x; posArr[i + 1] = v.y; posArr[i + 2] = v.z;
+  }
+  baseGeo.computeVertexNormals();
+
+  // Instanced geometry
+  const instGeo = new THREE.InstancedBufferGeometry();
+  instGeo.index = baseGeo.index;
+  instGeo.attributes.position = baseGeo.attributes.position;
+
+  const offsets = [];
+  const scales = [];
+  const halfAngles = [];
+  const indices = [];
+
+  for (let i = 0; i < BLADE_COUNT; i++) {
+    const x = offsetX + Math.random() * segLen;
+    const y = groundY;
+    const z = -4 + Math.random() * 8; // spread across full Z depth
+    offsets.push(x, y, z);
+    scales.push(0.3 + Math.random() * 0.5);
+    const a = Math.random() * Math.PI * 2;
+    halfAngles.push(Math.sin(a * 0.5), Math.cos(a * 0.5));
+    indices.push(i / BLADE_COUNT);
+  }
+
+  instGeo.setAttribute('offset', new THREE.InstancedBufferAttribute(new Float32Array(offsets), 3));
+  instGeo.setAttribute('scale', new THREE.InstancedBufferAttribute(new Float32Array(scales), 1));
+  instGeo.setAttribute('halfRootAngle', new THREE.InstancedBufferAttribute(new Float32Array(halfAngles), 2));
+  instGeo.setAttribute('idx', new THREE.InstancedBufferAttribute(new Float32Array(indices), 1));
+
+  const mat = new THREE.RawShaderMaterial({
+    vertexShader: GRASS_VERT,
+    fragmentShader: GRASS_FRAG,
+    uniforms: {
+      time: { value: 0 },
+      baseColor: { value: new THREE.Color(theme.grassBase || 0x2D5A1E) },
+      tipColor: { value: new THREE.Color(theme.grassTip || 0x6BBF3B) },
+    },
+    side: THREE.DoubleSide,
   });
+
+  const mesh = new THREE.Mesh(instGeo, mat);
+  mesh.frustumCulled = false;
+  mesh.userData.isGrass = true;
+  return mesh;
+}
+
+// ─── Extra model cache ───
+let cloudModel = null;
+let signModel = null;
+function preloadExtraModels() {
+  return Promise.all([
+    new Promise(resolve => {
+      gltfLoader.load('assets/Cloud.glb', (gltf) => {
+        cloudModel = gltf.scene;
+        resolve();
+      }, undefined, () => { resolve(); });
+    }),
+    new Promise(resolve => {
+      gltfLoader.load('assets/wooden_sign.glb', (gltf) => {
+        signModel = gltf.scene;
+        resolve();
+      }, undefined, () => { resolve(); });
+    }),
+  ]);
 }
 
 // ─── Background image cache ───
@@ -1607,7 +1747,7 @@ function buildParallaxSegment(group, offsetX, segLen, theme, bgI, segIdx) {
     }
 
     const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(segLen + 20, heights[i]),
+      new THREE.PlaneGeometry(segLen + 40, heights[i]),
       material
     );
     plane.position.set(offsetX + segLen / 2, yOffsets[i], zPositions[i]);
@@ -1740,11 +1880,12 @@ function buildWorld(scene, existingGroup) {
     const theme = PAL.parallax[bgI] || PAL.parallax[0];
     buildParallaxSegment(group, offset, segLen, theme, bgI, lvlIdx);
 
-    // Cannon at level start (inside level boundary)
+    // Cannon and sign position: right after level boundary line
+    const cannonPosX = lvlIdx === 0 ? offset : offset - LEVEL_GAP + 1;
     const cannonAsset = getAsset(GAME_ASSETS.cannon.name, GAME_ASSETS.cannon.color);
     if (cannonAsset) {
       cannonAsset.scale.setScalar(0.35);
-      cannonAsset.position.set(offset - LEVEL_GAP + 1, Y_MIN, 0);
+      cannonAsset.position.set(cannonPosX, Y_MIN, 0);
       cannonAsset.rotation.set(0.01, 1.56, 0.01);
       cannonAsset.traverse(child => {
         if (child.name && child.name.includes('barrel')) {
@@ -1753,6 +1894,39 @@ function buildWorld(scene, existingGroup) {
       });
       group.add(cannonAsset);
     }
+
+    // Level name sign after cannon
+    if (signModel) {
+      const sign = signModel.clone();
+      sign.scale.setScalar(1.0);
+      sign.position.set(cannonPosX + 2.5, Y_MIN, 0.5);
+      group.add(sign);
+
+      // Text label above sign
+      const labelCanvas = document.createElement('canvas');
+      labelCanvas.width = 512; labelCanvas.height = 128;
+      const lctx = labelCanvas.getContext('2d');
+      lctx.clearRect(0, 0, 512, 128);
+      lctx.fillStyle = '#FFFFFF';
+      lctx.font = 'bold 48px sans-serif';
+      lctx.textAlign = 'center';
+      lctx.textBaseline = 'middle';
+      lctx.strokeStyle = '#3A2010';
+      lctx.lineWidth = 5;
+      lctx.strokeText(`${lvlIdx + 1}. ${levelData.name}`, 256, 64);
+      lctx.fillText(`${lvlIdx + 1}. ${levelData.name}`, 256, 64);
+      const labelTex = new THREE.CanvasTexture(labelCanvas);
+      const labelMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.0, 0.75),
+        new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, depthWrite: false })
+      );
+      labelMesh.position.set(cannonPosX + 2.5, Y_MIN + 2.5, 0.8);
+      group.add(labelMesh);
+    }
+
+    // Instanced grass along ground
+    const grassMesh = createGrassStrip(segLen, offset, Y_MIN - 0.1, theme);
+    group.add(grassMesh);
 
     // Build level elements with offset
     levelData.elements.forEach((el, idx) => {
@@ -2407,7 +2581,7 @@ export default function BounceBlob() {
 
   const startGame = useCallback(() => {
     const g = gameRef.current;
-    g.state = 'launching';
+    g.state = 'ready';
     g.launchTimer = 0;
     g.currentLevel = 0;
     g.playerX = LEVEL_OFFSETS[0]; // Will be positioned by launch animation
@@ -2422,7 +2596,7 @@ export default function BounceBlob() {
     g.worldBuilt = true;
     g.needsWorldBuild = true;
     g.needsCollectibleReset = true;
-    setUiState('playing');
+    setUiState('ready');
     setCoins(0);
     setStars(0);
     setCurrentLevel(0);
@@ -2434,7 +2608,7 @@ export default function BounceBlob() {
   // Restart from beginning of current level
   const restartFromLevel = useCallback((lvlIdx) => {
     const g = gameRef.current;
-    g.state = 'launching';
+    g.state = 'ready';
     g.launchTimer = 0;
     g.currentLevel = lvlIdx;
     g.playerX = LEVEL_OFFSETS[lvlIdx];
@@ -2444,14 +2618,14 @@ export default function BounceBlob() {
     // Reset collectibles for this level (handled in game loop)
     g.needsCollectibleReset = true;
     g.resetFromLevel = lvlIdx;
-    setUiState('playing');
+    setUiState('ready');
     setCurrentLevel(lvlIdx);
   }, []);
 
   // Start game from a specific level (level select)
   const startFromLevel = useCallback((lvlIdx) => {
     const g = gameRef.current;
-    g.state = 'launching';
+    g.state = 'ready';
     g.launchTimer = 0;
     g.currentLevel = lvlIdx;
     g.playerX = LEVEL_OFFSETS[lvlIdx];
@@ -2467,7 +2641,7 @@ export default function BounceBlob() {
     g.needsWorldBuild = true;
     g.needsCollectibleReset = true;
     g.resetFromLevel = lvlIdx;
-    setUiState('playing');
+    setUiState('ready');
     setCoins(0);
     setStars(0);
     setCurrentLevel(lvlIdx);
@@ -2511,7 +2685,7 @@ export default function BounceBlob() {
     let collectibles = [];
 
     // Preload KayKit assets, then rebuild world with real models
-    Promise.all([preloadGameAssets(), preloadBackgroundImages(), preloadCloudModel()]).then(() => {
+    Promise.all([preloadGameAssets(), preloadBackgroundImages(), preloadExtraModels()]).then(() => {
       const g = gameRef.current;
       g.needsWorldBuild = true;
     });
@@ -2520,9 +2694,10 @@ export default function BounceBlob() {
     const g = gameRef.current;
     const onDown = (e) => {
       e.preventDefault();
-      g.holding = true;
       if (g.state === 'dead' && g.deathTimer > 0.3) {
         restartFromLevel(g.currentLevel);
+      } else {
+        g.holding = true;
       }
     };
     const onUp = (e) => { e.preventDefault(); g.holding = false; };
@@ -2846,11 +3021,41 @@ export default function BounceBlob() {
         setStars(g.stars);
       }
 
+      // Waiting in cannon — player must click/space to launch
+      if (g.state === 'ready') {
+        const lvlIdx = g.currentLevel;
+        const cannonX = lvlIdx === 0 ? LEVEL_OFFSETS[0] : LEVEL_OFFSETS[lvlIdx] - LEVEL_GAP + 1;
+        const cannonTipX = cannonX + 1;
+        const cannonTipY = Y_MIN + 1.8;
+
+        // Position player inside cannon (hidden but camera follows)
+        g.playerX = cannonX;
+        g.playerY = cannonTipY;
+        player.position.set(cannonX, cannonTipY, 0);
+        player.visible = false;
+
+        // Camera smoothly moves to cannon
+        camera.position.x += (cannonX + 3 - camera.position.x) * 4 * dt;
+        camera.position.y += (cannonTipY * 0.3 + 2.5 - camera.position.y) * 4 * dt;
+
+        // Wait for input
+        if (g.holding) {
+          g.state = 'launching';
+          g.launchTimer = 0;
+          g.holding = false;
+          setUiState('playing');
+        }
+
+        particleSys.update(scene, dt);
+        renderer.render(scene, camera);
+        return;
+      }
+
       // Launch animation — blob shoots out of cannon
       if (g.state === 'launching') {
         g.launchTimer += dt;
         const lvlIdx = g.currentLevel;
-        const cannonX = LEVEL_OFFSETS[lvlIdx] - LEVEL_GAP + 1;
+        const cannonX = lvlIdx === 0 ? LEVEL_OFFSETS[0] : LEVEL_OFFSETS[lvlIdx] - LEVEL_GAP + 1;
         const cannonTipX = cannonX + 1;
         const cannonTipY = Y_MIN + 1.8;
         // Emit smoke from cannon barrel at start
@@ -3092,7 +3297,7 @@ export default function BounceBlob() {
 
       particleSys.update(scene, dt);
 
-      // Animate atmospheric particles
+      // Animate atmospheric particles and grass
       if (worldGroup) {
         worldGroup.traverse(obj => {
           if (obj.userData.particle) {
@@ -3101,6 +3306,9 @@ export default function BounceBlob() {
             obj.position.x = p.baseX + Math.sin(p.phase * p.speedX * 5) * 1.5;
             obj.position.y = p.baseY + p.speedY * (p.phase % 20);
             obj.material.opacity = 0.3 + 0.3 * Math.sin(p.phase * 2);
+          }
+          if (obj.userData.isGrass && obj.material.uniforms) {
+            obj.material.uniforms.time.value = g.time;
           }
         });
       }
@@ -3226,6 +3434,15 @@ export default function BounceBlob() {
           </div>
           <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
             Click / Space / R to restart from Lv.{currentLevel + 1}
+          </div>
+        </div>
+      )}
+
+      {/* READY - waiting to launch */}
+      {uiState === 'ready' && (
+        <div style={{ ...overlayBase, background: 'transparent', pointerEvents: 'none' }}>
+          <div style={{ fontSize: '24px', fontWeight: 600, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.5)', marginTop: '40px' }}>
+            Click / Space to launch!
           </div>
         </div>
       )}
