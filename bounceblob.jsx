@@ -1007,6 +1007,57 @@ function createPlayer() {
 }
 
 // ─── Instanced Grass System ───
+// ─── Sand ripple shaders ───
+const SAND_VERT = `
+precision mediump float;
+attribute vec3 position;
+attribute vec3 offset;
+attribute float scale;
+attribute float idx;
+uniform float time;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+varying float frc;
+varying float vIdx;
+
+void main() {
+  frc = position.y;
+  vec3 vPos = position;
+  vPos.y *= scale;
+
+  // Subtle sand shimmer — high frequency, low amplitude
+  float windStrength = frc * frc;
+  float wave = sin(offset.x * 3.0 + time * 1.5) * 0.02 + sin(offset.x * 5.0 + time * 2.5) * 0.01;
+  vPos.y += wave * windStrength;
+  vPos.x += sin(offset.z * 2.0 + time * 0.8) * 0.01 * windStrength;
+
+  vPos += offset;
+  vIdx = idx;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(vPos, 1.0);
+}`;
+
+const SAND_FRAG = `
+precision mediump float;
+varying float frc;
+varying float vIdx;
+uniform vec3 baseColor;
+uniform vec3 tipColor;
+
+void main() {
+  vec3 col = mix(baseColor * 0.85, tipColor, frc);
+  // Per-ripple variation
+  float var1 = step(0.3, fract(vIdx * 7.0));
+  float var2 = step(0.6, fract(vIdx * 13.0));
+  col = mix(col, col * 1.15, var1 * 0.5);
+  col = mix(col, col * 0.9, var2 * 0.3);
+  // Subtle sparkle/glitter
+  float sparkle = step(0.97, fract(sin(vIdx * 12345.6789) * 43758.5453));
+  col += sparkle * 0.15;
+  // Darken at base
+  col *= 0.6 + 0.4 * frc;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
 const GRASS_VERT = `
 precision mediump float;
 attribute vec3 position;
@@ -1136,23 +1187,83 @@ function createGrassStrip(segLen, offsetX, groundY, theme) {
   return mesh;
 }
 
+function createSandStrip(segLen, offsetX, groundY, theme) {
+  const RIPPLE_COUNT = Math.min(Math.floor(segLen * 60), 6000); // sparser than grass
+  const RIPPLE_W = 0.6;  // wide ripple ridges
+  const RIPPLE_H = 0.08; // very low — just subtle bumps
+
+  // Flat, wide ripple geometry — a gently curved ridge
+  const baseGeo = new THREE.PlaneGeometry(RIPPLE_W, RIPPLE_H, 4, 2);
+  baseGeo.translate(0, RIPPLE_H / 2, 0);
+
+  // Smooth arch shape
+  const posArr = baseGeo.attributes.position.array;
+  for (let i = 0; i < posArr.length; i += 3) {
+    const fx = posArr[i] / (RIPPLE_W / 2); // -1 to 1
+    const fy = posArr[i + 1] / RIPPLE_H;
+    // Smooth ridge shape — higher in center, fading at edges
+    posArr[i + 1] += Math.sin(fy * Math.PI) * (1 - fx * fx) * 0.04;
+  }
+  baseGeo.computeVertexNormals();
+
+  const instGeo = new THREE.InstancedBufferGeometry();
+  instGeo.index = baseGeo.index;
+  instGeo.attributes.position = baseGeo.attributes.position;
+
+  const offsets = [];
+  const scales = [];
+  const indices = [];
+
+  for (let i = 0; i < RIPPLE_COUNT; i++) {
+    const x = offsetX + Math.random() * segLen;
+    const y = groundY;
+    const z = -4 + Math.random() * 8;
+    offsets.push(x, y, z);
+    scales.push(0.4 + Math.random() * 0.8);
+    indices.push(i / RIPPLE_COUNT);
+  }
+
+  instGeo.setAttribute('offset', new THREE.InstancedBufferAttribute(new Float32Array(offsets), 3));
+  instGeo.setAttribute('scale', new THREE.InstancedBufferAttribute(new Float32Array(scales), 1));
+  instGeo.setAttribute('idx', new THREE.InstancedBufferAttribute(new Float32Array(indices), 1));
+
+  const mat = new THREE.RawShaderMaterial({
+    vertexShader: SAND_VERT,
+    fragmentShader: SAND_FRAG,
+    uniforms: {
+      time: { value: 0 },
+      baseColor: { value: new THREE.Color(theme.grassBase || 0x8A7A40) },
+      tipColor: { value: new THREE.Color(theme.grassTip || 0xC4A860) },
+    },
+    side: THREE.DoubleSide,
+  });
+
+  const mesh = new THREE.Mesh(instGeo, mat);
+  mesh.frustumCulled = false;
+  mesh.userData.isGrass = true; // reuse same time update
+  return mesh;
+}
+
 // ─── Extra model cache ───
 let cloudModel = null;
 let signModel = null;
+const decoModels = {}; // bush, bushFlowers, flowerGroup, plantBig
 function preloadExtraModels() {
+  const loadGLB = (path, key) => new Promise(resolve => {
+    gltfLoader.load(path, (gltf) => {
+      if (key) decoModels[key] = gltf.scene;
+      else if (path.includes('Cloud')) cloudModel = gltf.scene;
+      else if (path.includes('sign')) signModel = gltf.scene;
+      resolve();
+    }, undefined, () => { resolve(); });
+  });
   return Promise.all([
-    new Promise(resolve => {
-      gltfLoader.load('assets/Cloud.glb', (gltf) => {
-        cloudModel = gltf.scene;
-        resolve();
-      }, undefined, () => { resolve(); });
-    }),
-    new Promise(resolve => {
-      gltfLoader.load('assets/wooden_sign.glb', (gltf) => {
-        signModel = gltf.scene;
-        resolve();
-      }, undefined, () => { resolve(); });
-    }),
+    loadGLB('assets/Cloud.glb'),
+    loadGLB('assets/wooden_sign.glb'),
+    loadGLB('assets/bush.glb', 'bush'),
+    loadGLB('assets/bush_flowers.glb', 'bushFlowers'),
+    loadGLB('assets/flower_group.glb', 'flowerGroup'),
+    loadGLB('assets/plant_big.glb', 'plantBig'),
   ]);
 }
 
@@ -1849,23 +1960,32 @@ function buildWorld(scene, existingGroup) {
     grassTop.position.set(offset + segLen / 2, Y_MIN - 0.2, 0);
     group.add(grassTop);
 
-    // Diorama edge decorations — small bushes/rocks along ground line
-    const bushColor = bgI === 3 ? 0xE0EEF0 : bgI === 4 ? 0x2A1208 : bgI === 5 ? 0x1A1A40 : 0x3A8820;
+    // Diorama edge decorations — theme-appropriate ground details
+    const bushColors = {
+      0: 0x3A8820, // forest: green bushes
+      1: 0xB89860, // desert: sandstone rocks
+      2: 0x1A3A1A, // night: dark bushes
+      3: 0xE0EEF0, // winter: snow mounds
+      4: 0x3A1A08, // volcano: dark rocks
+      5: 0x1A1A40, // space: dark rocks
+    };
+    const bushColor = bushColors[bgI] || bushColors[0];
     const bushCount = Math.floor(segLen / 3);
     for (let bi = 0; bi < bushCount; bi++) {
       const bx = offset + 1.5 + bi * 3 + (Math.sin(bi * 7.3 + offset) * 0.8);
-      const bz = -1 + Math.sin(bi * 4.1) * 2.5; // spread across Z depth
+      const bz = -1 + Math.sin(bi * 4.1) * 2.5;
 
-      if (bgI <= 2 || bgI === 3) {
-        // Bushes — rounded hemisphere shapes
-        const bushSize = 0.25 + Math.abs(Math.sin(bi * 3.7)) * 0.35;
-        const bushGeo = new THREE.SphereGeometry(bushSize, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.6);
-        const bushMat = new THREE.MeshPhongMaterial({ color: bushColor });
-        const bush = new THREE.Mesh(bushGeo, bushMat);
-        bush.position.set(bx, Y_MIN - 0.1, bz);
-        group.add(bush);
-      } else {
-        // Rocks for volcano/space themes
+      if (bgI === 1) {
+        // Desert: scattered sandstone rocks, no bushes
+        const rockSize = 0.15 + Math.abs(Math.sin(bi * 5.1)) * 0.25;
+        const rockGeo = new THREE.DodecahedronGeometry(rockSize, 0);
+        const rockMat = new THREE.MeshPhongMaterial({ color: bushColor });
+        const rock = new THREE.Mesh(rockGeo, rockMat);
+        rock.position.set(bx, Y_MIN - 0.05, bz);
+        rock.rotation.set(bi * 1.3, bi * 2.1, bi * 0.7);
+        group.add(rock);
+      } else if (bgI === 4 || bgI === 5) {
+        // Volcano/space: angular dark rocks
         const rockSize = 0.2 + Math.abs(Math.sin(bi * 5.1)) * 0.3;
         const rockGeo = new THREE.DodecahedronGeometry(rockSize, 0);
         const rockMat = new THREE.MeshPhongMaterial({ color: bushColor });
@@ -1873,6 +1993,30 @@ function buildWorld(scene, existingGroup) {
         rock.position.set(bx, Y_MIN - 0.05, bz);
         rock.rotation.set(bi * 1.3, bi * 2.1, bi * 0.7);
         group.add(rock);
+      } else if (bgI === 0 && Object.keys(decoModels).length > 0) {
+        // Forest: use 3D bush/flower/plant models
+        const decoTypes = ['bush', 'bushFlowers', 'flowerGroup', 'plantBig'];
+        const pick = decoTypes[bi % decoTypes.length];
+        const src = decoModels[pick];
+        if (src) {
+          const deco = src.clone();
+          const s = pick === 'bush' ? 0.03 : // Bush has internal scale=100, try bigger
+                    pick === 'plantBig' ? 0.48 :
+                    pick === 'flowerGroup' ? 0.42 : 0.48; // bushFlowers
+          const sizeVar = 0.7 + Math.abs(Math.sin(bi * 3.7)) * 0.6;
+          deco.scale.setScalar(s * sizeVar);
+          deco.position.set(bx, Y_MIN - 0.05, bz);
+          deco.rotation.y = Math.random() * Math.PI * 2;
+          group.add(deco);
+        }
+      } else {
+        // Night/winter/fallback: rounded bushes
+        const bushSize = 0.25 + Math.abs(Math.sin(bi * 3.7)) * 0.35;
+        const bushGeo = new THREE.SphereGeometry(bushSize, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.6);
+        const bushMat = new THREE.MeshPhongMaterial({ color: bushColor });
+        const bush = new THREE.Mesh(bushGeo, bushMat);
+        bush.position.set(bx, Y_MIN - 0.1, bz);
+        group.add(bush);
       }
     }
 
@@ -1924,9 +2068,12 @@ function buildWorld(scene, existingGroup) {
       group.add(labelMesh);
     }
 
-    // Instanced grass along ground
-    const grassMesh = createGrassStrip(segLen, offset, Y_MIN - 0.1, theme);
-    group.add(grassMesh);
+    // Instanced grass/sand along ground
+    const useSand = levelData.bgIdx === 1 || levelData.bgIdx === 4; // desert, volcano
+    const groundCover = useSand
+      ? createSandStrip(segLen, offset, Y_MIN - 0.1, theme)
+      : createGrassStrip(segLen, offset, Y_MIN - 0.1, theme);
+    group.add(groundCover);
 
     // Build level elements with offset
     levelData.elements.forEach((el, idx) => {
